@@ -37,21 +37,26 @@ export async function POST(
   await db.$transaction(async (tx) => {
     const cur = await tx.order.findUniqueOrThrow({
       where: { id: order.id },
-      select: { paymentStatus: true },
+      select: { paymentStatus: true, status: true },
     });
+    // Status terminal (CANCELLED/EXPIRED) tidak boleh dihidupkan kembali
+    // oleh callback; paymentStatus tetap dicatat apa adanya.
+    const isTerminal = ["CANCELLED", "EXPIRED"].includes(cur.status);
     await tx.order.update({
       where: { id: order.id },
       data: {
         paymentStatus: update.paymentStatus,
-        status: update.status,
+        status: isTerminal ? cur.status : update.status,
         paidAt: verified.status === "PAID" ? new Date() : undefined,
       },
     });
     await tx.paymentLog.create({
       data: { orderId: order.id, gateway: name, event: "callback", payload: verified.raw as object },
     });
-    // Kembalikan stok jika gagal/kedaluwarsa — hanya sekali (idempotent terhadap callback duplikat)
-    const alreadyRestored = ["FAILED", "EXPIRED"].includes(cur.paymentStatus);
+    // Kembalikan stok jika gagal/kedaluwarsa — hanya sekali. Idempotent
+    // terhadap callback duplikat DAN pembatalan manual oleh pembeli.
+    const alreadyRestored =
+      ["FAILED", "EXPIRED"].includes(cur.paymentStatus) || isTerminal;
     if (
       (verified.status === "FAILED" || verified.status === "EXPIRED") &&
       !alreadyRestored

@@ -3,7 +3,10 @@
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { requireRole, getMyVendor, adminVillageFilter } from "@/lib/session";
-import { writeFile, mkdir } from "fs/promises";
+import { normalizePhone } from "@/lib/format";
+import { rateLimit } from "@/lib/rate-limit";
+import { expireOrderIfStale } from "@/lib/orders";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
@@ -18,6 +21,13 @@ const ALLOWED: Record<string, string> = {
 
 type Result = { ok: true } | { ok: false; error: string };
 
+/** Hapus file upload dari disk berdasarkan path publiknya (/uploads/xxx). */
+async function removeUpload(publicPath: string | null): Promise<void> {
+  if (!publicPath?.startsWith("/uploads/")) return;
+  const filename = path.basename(publicPath); // cegah path traversal
+  await unlink(path.join(process.cwd(), "uploads", filename)).catch(() => {});
+}
+
 /**
  * Pembeli mengunggah foto bukti bayar (QRIS/transfer ke toko).
  * Akses tanpa login — diverifikasi lewat kode order + no HP (sama seperti lacak).
@@ -27,8 +37,21 @@ export async function submitPaymentProof(
   phone: string,
   formData: FormData,
 ): Promise<Result> {
+  const normalizedCode = code.trim().toUpperCase();
+  if (!rateLimit(`proof:${normalizedCode}`, 10, 10 * 60 * 1000)) {
+    return { ok: false, error: "Terlalu banyak percobaan. Coba lagi nanti." };
+  }
+
+  // Tandai kedaluwarsa dulu — bukti bayar tidak boleh masuk ke order mati
+  await expireOrderIfStale(
+    (await db.order.findUnique({
+      where: { code: normalizedCode },
+      select: { id: true },
+    }))?.id ?? "",
+  );
+
   const order = await db.order.findUnique({
-    where: { code: code.trim().toUpperCase() },
+    where: { code: normalizedCode },
     select: {
       id: true,
       code: true,
@@ -37,13 +60,14 @@ export async function submitPaymentProof(
       status: true,
       paymentMethod: true,
       paymentStatus: true,
+      paymentProof: true,
     },
   });
   if (!order) return { ok: false, error: "Pesanan tidak ditemukan" };
 
   const session = await auth();
   const allowed =
-    order.buyerPhone === phone.trim() ||
+    normalizePhone(order.buyerPhone) === normalizePhone(phone) ||
     (session?.user?.id && session.user.id === order.buyerId) ||
     session?.user?.role === "ADMIN_DESA" ||
     session?.user?.role === "SUPERADMIN";
@@ -75,14 +99,29 @@ export async function submitPaymentProof(
     Buffer.from(await file.arrayBuffer()),
   );
 
-  await db.order.update({
-    where: { id: order.id },
+  // Guard: order mungkin berubah status antara pengecekan dan penulisan file
+  const res = await db.order.updateMany({
+    where: {
+      id: order.id,
+      status: { notIn: ["CANCELLED", "EXPIRED"] },
+      paymentStatus: { in: ["UNPAID", "PENDING"] },
+    },
     data: {
       paymentProof: `/uploads/${filename}`,
       // UNPAID → PENDING (menunggu konfirmasi penjual); re-upload saat PENDING tetap PENDING
       paymentStatus: "PENDING",
     },
   });
+  if (res.count === 0) {
+    await removeUpload(`/uploads/${filename}`);
+    return { ok: false, error: "Pesanan tidak dapat menerima bukti bayar" };
+  }
+
+  // Bukti lama yang digantikan tidak dipakai lagi — bersihkan dari disk
+  if (order.paymentProof && order.paymentProof !== `/uploads/${filename}`) {
+    await removeUpload(order.paymentProof);
+  }
+
   revalidatePath(`/pesanan/${order.code}`);
   return { ok: true };
 }
@@ -100,6 +139,9 @@ export async function reviewPaymentProof(
   const isAdmin = user.role === "ADMIN_DESA" || user.role === "SUPERADMIN";
   const vendor = await getMyVendor(user.id);
   if (!isAdmin && !vendor) return { ok: false, error: "Tidak berwenang" };
+
+  // Order lewat batas bayar tidak boleh lagi di-approve
+  await expireOrderIfStale(orderId);
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -131,20 +173,24 @@ export async function reviewPaymentProof(
   }
 
   if (decision === "approve") {
-    await db.order.update({
-      where: { id: order.id },
-      data: {
-        paymentStatus: "PAID",
-        paidAt: new Date(),
-        // Hanya naikkan PENDING → PAID; jangan mundurkan status lanjutan
-        ...(order.status === "PENDING" ? { status: "PAID" as const } : {}),
-      },
+    // Guard PENDING — dua peninjau tidak bisa approve bersamaan
+    const res = await db.order.updateMany({
+      where: { id: order.id, paymentStatus: "PENDING", status: "PENDING" },
+      data: { paymentStatus: "PAID", paidAt: new Date(), status: "PAID" },
     });
+    if (res.count === 0) {
+      return { ok: false, error: "Status pesanan sudah berubah — muat ulang" };
+    }
   } else {
-    await db.order.update({
-      where: { id: order.id },
+    const res = await db.order.updateMany({
+      where: { id: order.id, paymentStatus: "PENDING" },
       data: { paymentStatus: "UNPAID", paymentProof: null },
     });
+    if (res.count === 0) {
+      return { ok: false, error: "Status pesanan sudah berubah — muat ulang" };
+    }
+    // File bukti yang ditolak tidak dipakai — bersihkan dari disk
+    await removeUpload(order.paymentProof);
   }
 
   await db.paymentLog.create({

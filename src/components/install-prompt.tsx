@@ -14,6 +14,8 @@ export function InstallPrompt() {
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
+      // Jangan tampilkan bila pengguna sudah pernah menutup prompt
+      if (localStorage.getItem("install-dismissed") === "1") return;
       setDeferred(e as BeforeInstallPromptEvent);
     };
     window.addEventListener("beforeinstallprompt", handler);
@@ -39,7 +41,10 @@ export function InstallPrompt() {
         Pasang
       </button>
       <button
-        onClick={() => setDismissed(true)}
+        onClick={() => {
+          localStorage.setItem("install-dismissed", "1");
+          setDismissed(true);
+        }}
         className="text-sm text-stone-400"
         aria-label="Tutup"
       >

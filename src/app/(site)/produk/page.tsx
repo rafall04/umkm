@@ -26,8 +26,8 @@ export default async function AllProductsPage({ searchParams }: Props) {
     where: {
       isActive: true,
       vendor: { isActive: true, isVerified: true },
+      village: { isActive: true, ...(sp.desa ? { slug: sp.desa } : {}) },
       ...(activeCategory ? { categoryId: activeCategory.id } : {}),
-      ...(sp.desa ? { village: { slug: sp.desa } } : {}),
       ...(sp.q
         ? {
             OR: [

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { ProductCard } from "@/components/product-card";
-import { waLink } from "@/lib/format";
+import { waLink, safeJsonLd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ type Props = { params: Promise<{ desa: string; slug: string }> };
 
 async function getVendor(desa: string, slug: string) {
   return db.vendor.findFirst({
-    where: { slug, village: { slug: desa }, isActive: true, isVerified: true },
+    where: { slug, village: { slug: desa, isActive: true }, isActive: true, isVerified: true },
     include: {
       village: true,
       products: {
@@ -59,7 +59,7 @@ export default async function VendorPage({ params }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       <nav className="text-sm text-stone-500" aria-label="Breadcrumb">

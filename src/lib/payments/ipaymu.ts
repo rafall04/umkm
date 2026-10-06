@@ -92,7 +92,12 @@ export const ipaymu: PaymentGateway = {
     });
     const json = await res.json();
 
-    const statusCode = json?.Data?.StatusCode ?? body.status_code;
+    // Status HANYA boleh dari hasil cek API — body callback tidak bertanda
+    // tangan dan dapat dipalsukan. Tanpa fallback: gagal verifikasi = tolak.
+    const statusCode = json?.Data?.StatusCode;
+    if (statusCode === undefined || statusCode === null) {
+      throw new Error("Verifikasi transaksi iPaymu gagal — data tidak ditemukan");
+    }
     const map: Record<string, VerifiedCallback["status"]> = {
       "1": "PAID",
       "0": "PENDING",
@@ -102,9 +107,9 @@ export const ipaymu: PaymentGateway = {
     };
 
     return {
-      reference: body.reference_id ?? body.referenceId,
+      reference: json.Data.ReferenceId ?? body.reference_id ?? body.referenceId,
       status: map[String(statusCode)] ?? "PENDING",
-      raw: { callback: body, check: json?.Data },
+      raw: { callback: body, check: json.Data },
     };
   },
 };

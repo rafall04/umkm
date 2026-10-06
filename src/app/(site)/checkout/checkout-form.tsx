@@ -4,17 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart";
+import { useMounted } from "@/lib/use-mounted";
 import { placeOrder } from "@/app/actions/checkout";
 import { rupiah } from "@/lib/format";
+import { FLAT_SHIPPING_FEE } from "@/lib/config";
+import { INPUT_CLS } from "@/lib/ui";
 
 const DELIVERY = [
   { value: "COD", label: "Bayar & serah terima di tempat", fee: 0 },
-  { value: "ANTAR_DESA", label: "Diantar ke alamat Anda", fee: 5000 },
+  { value: "ANTAR_DESA", label: "Diantar ke alamat Anda", fee: FLAT_SHIPPING_FEE },
   { value: "AMBIL_SENDIRI", label: "Ambil sendiri di lokasi penjual", fee: 0 },
 ] as const;
 
 export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
   const { items, clear } = useCart();
+  const mounted = useMounted();
   const router = useRouter();
   const [delivery, setDelivery] = useState<(typeof DELIVERY)[number]["value"]>(
     "ANTAR_DESA",
@@ -35,6 +39,17 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
   const shippingFee =
     subtotal === 0 ? 0 : (DELIVERY.find((d) => d.value === delivery)?.fee ?? 0);
   const total = subtotal + shippingFee;
+
+  // Keranjang tersimpan di localStorage — jangan render isinya sebelum
+  // hydration selesai supaya tidak terjadi mismatch SSR↔client.
+  if (!mounted) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <h1 className="text-2xl font-bold">Checkout</h1>
+        <div className="mt-6 h-64 animate-pulse rounded-2xl bg-stone-100" />
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -77,9 +92,6 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
     );
   }
 
-  const inputCls =
-    "w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
-
   return (
     <form onSubmit={submit} className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-bold">Checkout</h1>
@@ -93,14 +105,16 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
                 name="buyerName"
                 required
                 placeholder="Nama lengkap"
-                className={inputCls}
+                aria-label="Nama lengkap"
+                className={INPUT_CLS}
               />
               <input
                 name="buyerPhone"
                 required
                 type="tel"
                 placeholder="No. HP / WhatsApp (08xx)"
-                className={inputCls}
+                aria-label="Nomor HP atau WhatsApp"
+                className={INPUT_CLS}
               />
             </div>
           </section>
@@ -139,7 +153,8 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
                   required
                   rows={2}
                   placeholder="Alamat lengkap (RT/RW, dusun, patokan)"
-                  className={inputCls}
+                  aria-label="Alamat lengkap"
+                  className={INPUT_CLS}
                 />
               )}
             </div>
@@ -176,7 +191,8 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
               name="note"
               rows={2}
               placeholder="Catatan untuk penjual (opsional)"
-              className={`${inputCls} mt-3`}
+              aria-label="Catatan untuk penjual"
+              className={`${INPUT_CLS} mt-3`}
             />
           </section>
         </div>

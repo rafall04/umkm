@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireRole, adminVillageFilter } from "@/lib/session";
+import { RESERVED_SLUGS } from "@/lib/slugs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -65,7 +66,16 @@ export async function confirmManualPayment(orderId: string) {
 }
 
 export async function setUserActive(userId: string, active: boolean) {
-  await requireRole("SUPERADMIN");
+  const me = await requireRole("SUPERADMIN");
+  // Jangan bolehkan menonaktifkan diri sendiri atau sesama superadmin —
+  // UI menyembunyikan tombolnya, tapi action tetap harus menjaga.
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!target || target.role === "SUPERADMIN" || userId === me.id) {
+    return { ok: false as const, error: "Tidak dapat mengubah akun ini" };
+  }
   await db.user.update({ where: { id: userId }, data: { isActive: active } });
   revalidatePath("/admin/pengguna");
   return { ok: true as const };
@@ -73,7 +83,11 @@ export async function setUserActive(userId: string, active: boolean) {
 
 const villageSchema = z.object({
   id: z.string().optional(),
-  slug: z.string().min(2).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(2)
+    .regex(/^[a-z0-9-]+$/)
+    .refine((s) => !RESERVED_SLUGS.has(s), "Slug ini dipakai sistem — pilih yang lain"),
   name: z.string().min(3),
   kecamatan: z.string().min(2),
   kabupaten: z.string().min(2),
@@ -86,10 +100,17 @@ export async function saveVillage(input: unknown) {
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message };
   const d = parsed.data;
 
-  if (d.id) {
-    await db.village.update({ where: { id: d.id }, data: d });
-  } else {
-    await db.village.create({ data: d });
+  try {
+    if (d.id) {
+      await db.village.update({ where: { id: d.id }, data: d });
+    } else {
+      await db.village.create({ data: d });
+    }
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      return { ok: false as const, error: "Slug sudah dipakai wilayah lain" };
+    }
+    throw e;
   }
   revalidatePath("/admin/desa");
   return { ok: true as const };

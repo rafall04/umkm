@@ -3,11 +3,16 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { slugify } from "@/lib/format";
+import { slugify, normalizePhone } from "@/lib/format";
+import { rateLimit } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   name: z.string().min(3, "Nama minimal 3 karakter"),
-  phone: z.string().min(9, "Nomor HP tidak valid").max(16),
+  // Disimpan ternormalisasi (62xxx) agar login & lacak-pesanan selalu cocok
+  phone: z.preprocess(
+    (v) => (typeof v === "string" ? normalizePhone(v) : v),
+    z.string().min(9, "Nomor HP tidak valid").max(16),
+  ),
   email: z.string().email("Email tidak valid").optional().or(z.literal("")),
   password: z.string().min(6, "Kata sandi minimal 6 karakter"),
 });
@@ -18,6 +23,10 @@ export async function registerBuyer(input: unknown) {
     return { ok: false as const, error: parsed.error.issues[0]?.message };
   }
   const { name, phone, email, password } = parsed.data;
+
+  if (!rateLimit(`register:${phone}`, 5, 60 * 60 * 1000)) {
+    return { ok: false as const, error: "Terlalu banyak percobaan. Coba lagi nanti." };
+  }
 
   const existing = await db.user.findFirst({
     where: { OR: [{ phone }, ...(email ? [{ email: email.toLowerCase() }] : [])] },
@@ -52,7 +61,12 @@ export async function registerVendor(input: unknown) {
   const { name, phone, email, password, villageId, storeName, storeDescription, whatsapp, address } =
     parsed.data;
 
-  const village = await db.village.findUnique({ where: { id: villageId } });
+  if (!rateLimit(`register:${phone}`, 5, 60 * 60 * 1000)) {
+    return { ok: false as const, error: "Terlalu banyak percobaan. Coba lagi nanti." };
+  }
+
+  // Wilayah nonaktif tidak boleh menerima pendaftaran baru
+  const village = await db.village.findFirst({ where: { id: villageId, isActive: true } });
   if (!village) return { ok: false as const, error: "Lokasi usaha tidak ditemukan" };
 
   const existing = await db.user.findFirst({

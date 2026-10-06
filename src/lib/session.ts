@@ -11,8 +11,18 @@ export async function getSessionUser() {
 export async function requireRole(...roles: Role[]) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!roles.includes(user.role)) redirect("/");
-  return user;
+
+  // JWT tidak berubah setelah login — ambil ulang status aktif, role,
+  // dan scope wilayah dari DB agar nonaktif/pemindahan role langsung
+  // berlaku tanpa menunggu token kedaluwarsa (1 query PK per aksi).
+  const fresh = await db.user.findUnique({
+    where: { id: user.id },
+    select: { isActive: true, role: true, villageId: true },
+  });
+  if (!fresh?.isActive) redirect("/login");
+  if (!roles.includes(fresh.role)) redirect("/");
+
+  return { ...user, role: fresh.role, villageId: fresh.villageId };
 }
 
 /** Vendor milik user yang sedang login */
@@ -25,5 +35,8 @@ export async function getMyVendor(userId: string) {
 
 /** Scope wilayah untuk admin: SUPERADMIN → semua, ADMIN_DESA → wilayah-nya */
 export function adminVillageFilter(user: { role: Role; villageId: string | null }) {
-  return user.role === "ADMIN_DESA" ? { villageId: user.villageId ?? undefined } : {};
+  if (user.role !== "ADMIN_DESA") return {};
+  // Fail-closed: admin tanpa wilayah tidak boleh melihat/mengubah apa pun —
+  // nilai ini tidak akan pernah cocok dengan id asli.
+  return { villageId: user.villageId ?? "__tanpa_wilayah__" };
 }

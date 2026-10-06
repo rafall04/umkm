@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveProduct, deleteProduct } from "@/app/actions/vendor";
+import { INPUT_CLS } from "@/lib/ui";
 
 type CategoryLite = { id: string; name: string; icon: string | null };
 type ProductEditable = {
@@ -40,8 +41,7 @@ export function ProductForm({
   const [uploading, setUploading] = useState(false);
   const router = useRouter();
 
-  const inputCls =
-    "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  const inputCls = INPUT_CLS;
 
   async function uploadImage(file: File) {
     setUploading(true);

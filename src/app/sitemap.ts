@@ -8,9 +8,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const [villages, vendors, products, categories] = await Promise.all([
     db.village.findMany({ where: { isActive: true } }),
-    db.vendor.findMany({ where: { isActive: true, isVerified: true }, include: { village: true } }),
+    db.vendor.findMany({
+      where: { isActive: true, isVerified: true, village: { isActive: true } },
+      include: { village: true },
+    }),
     db.product.findMany({
-      where: { isActive: true, vendor: { isActive: true, isVerified: true } },
+      where: {
+        isActive: true,
+        village: { isActive: true },
+        vendor: { isActive: true, isVerified: true },
+      },
       include: { village: true },
     }),
     db.category.findMany(),

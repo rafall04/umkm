@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getProductsByVillage } from "@/lib/queries";
 import { AddToCart } from "@/components/add-to-cart";
 import { ProductCard } from "@/components/product-card";
-import { rupiah } from "@/lib/format";
+import { rupiah, safeJsonLd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ async function getProduct(desa: string, slug: string) {
     where: {
       slug,
       isActive: true,
-      village: { slug: desa },
+      village: { slug: desa, isActive: true },
       vendor: { isActive: true, isVerified: true },
     },
     include: { vendor: { include: { village: true } }, category: true, village: true },
@@ -72,7 +72,7 @@ export default async function ProductPage({ params }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       <nav className="text-sm text-stone-500" aria-label="Breadcrumb">

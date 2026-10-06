@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { registerVendor } from "@/app/actions/auth";
+import { INPUT_CLS } from "@/lib/ui";
 
 export function VendorRegisterForm({
   villages,
@@ -26,8 +27,7 @@ export function VendorRegisterForm({
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const inputCls =
-    "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  const inputCls = INPUT_CLS;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,13 +73,13 @@ export function VendorRegisterForm({
 
       <h2 className="mt-6 font-semibold">Data Pemilik</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <input required placeholder="Nama pemilik" className={inputCls}
+        <input required placeholder="Nama pemilik" aria-label="Nama pemilik" className={inputCls}
           value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input required type="tel" placeholder="No. HP" className={inputCls}
+        <input required type="tel" placeholder="No. HP" aria-label="Nomor HP" className={inputCls}
           value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <input type="email" placeholder="Email (opsional)" className={inputCls}
+        <input type="email" placeholder="Email (opsional)" aria-label="Email (opsional)" className={inputCls}
           value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input required type="password" placeholder="Kata sandi (min. 6)" className={inputCls}
+        <input required type="password" placeholder="Kata sandi (min. 6)" aria-label="Kata sandi" className={inputCls}
           value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
       </div>
 
@@ -87,6 +87,7 @@ export function VendorRegisterForm({
       <div className="mt-3 space-y-3">
         <select
           required
+          aria-label="Lokasi usaha"
           className={inputCls}
           value={form.villageId}
           onChange={(e) => setForm({ ...form, villageId: e.target.value })}
@@ -98,14 +99,14 @@ export function VendorRegisterForm({
             </option>
           ))}
         </select>
-        <input required placeholder="Nama usaha / toko" className={inputCls}
+        <input required placeholder="Nama usaha / toko" aria-label="Nama usaha atau toko" className={inputCls}
           value={form.storeName} onChange={(e) => setForm({ ...form, storeName: e.target.value })} />
         <textarea required rows={3} placeholder="Deskripsi usaha (produk apa yang dijual, sejak kapan, keunggulan)"
-          className={inputCls}
+          aria-label="Deskripsi usaha" className={inputCls}
           value={form.storeDescription} onChange={(e) => setForm({ ...form, storeDescription: e.target.value })} />
-        <input required type="tel" placeholder="No. WhatsApp usaha (08xx)" className={inputCls}
+        <input required type="tel" placeholder="No. WhatsApp usaha (08xx)" aria-label="Nomor WhatsApp usaha" className={inputCls}
           value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
-        <textarea required rows={2} placeholder="Alamat lengkap usaha" className={inputCls}
+        <textarea required rows={2} placeholder="Alamat lengkap usaha" aria-label="Alamat lengkap usaha" className={inputCls}
           value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
       </div>
 

@@ -69,3 +69,43 @@ Lint bersih · `next build` sukses · smoke test live (login guard, callback, up
 - `force-dynamic` konsisten di semua halaman DB; `params`/`searchParams` selalu di-await.
 - PWA: manifest lengkap (192+512+maskable, shortcuts), SW network-first untuk navigasi + SWR gambar + cache-first aset, offline page, SW hanya produksi.
 - SEO: metadata per halaman, JSON-LD, sitemap dinamis, robots, canonical village.
+
+---
+
+# Status Remediasi (2026-10-06)
+
+Semua temuan di atas telah dikerjakan dan diverifikasi ulang (lint ✓ · tsc ✓ · 17 unit test ✓ · build ✓ · smoke test live pada build baru ✓).
+
+## 🔴 — selesai
+
+1. **Git** — `.pgdata/` di-ignore, `git init`, commit baseline dibuat.
+2. **JSON-LD XSS** — helper `safeJsonLd()` di `src/lib/format.ts` (escape `<` → `<`), dipakai di keempat halaman.
+3. **iPaymu** — fallback `body.status_code` dihapus; status hanya dari hasil cek API, `ReferenceId` diverifikasi — gagal verifikasi = 400.
+4. **Stok 2×** — `cancelOrder` kini `updateMany` berguard status+paymentStatus di dalam tx; `updateOrderItemStatus` menolak order terminal + transisi item dikunci pada status saat ini; callback route tidak me-restore untuk order terminal dan tidak me-resurrect status CANCELLED/EXPIRED.
+
+## 🟡 — selesai
+
+5. `adminVillageFilter` fail-closed (`__tanpa_wilayah__` tak pernah cocok).
+6. Order TRANSFER `expiredAt` = +24 jam; `expireOrderIfStale()` (`src/lib/orders.ts`) menandai EXPIRED + restore stok secara atomik — dipanggil lazy di `trackOrder`, `submitPaymentProof`, `reviewPaymentProof`.
+7. Ongkir satu sumber: `FLAT_SHIPPING_FEE` di `src/lib/config.ts` (server action & form).
+8. `/checkout` memakai `useMounted()` + skeleton — tidak ada mismatch lagi.
+
+Lanjutan 🟡 lain: `requireRole` re-validasi `isActive`/role/`villageId` dari DB per aksi; `setUserActive` menolak menonaktifkan diri sendiri & sesama SUPERADMIN; no HP dinormalisasi (`62xxx`) saat register/checkout dan dibandingkan dua sisi saat lacak/bukti bayar; `village.isActive` ditegakkan di semua query publik + pendaftaran vendor; `formatDate(Time)` terkunci `Asia/Jakarta`; rate limit in-memory untuk login/register/checkout/lacak/bukti bayar (`src/lib/rate-limit.ts`); security headers + CSP di `next.config.ts`; port Postgres di-bind `127.0.0.1`; blacklist slug wilayah (`RESERVED_SLUGS`) + penanganan slug duplikat; overrides `mysql2@^3.24.5` & `deepmerge-ts@^8.0.2` (9→5 high, sisanya dev-toolchain tanpa patch upstream); `@auth/prisma-adapter` dihapus.
+
+## 🟢 — selesai
+
+`INPUT_CLS` di `src/lib/ui.ts` menggantikan duplikasi `inputCls` di 7 file; `StatusBadge` satu map per-status (solid+outline); `aria-label` pada input placeholder-only di form publik & admin; `icons` metadata (icon+apple) di layout; `/pesanan` di-disallow di robots; dismiss install-prompt tersimpan; file bukti bayar dihapus dari disk saat ditolak/diganti; `env.example` + `SEED_ADMIN_PASSWORD`/`POSTGRES_PASSWORD`; script `dev-db.mjs` didokumentasikan di README.
+
+## Baru
+
+- `DESIGN.md` — token, komponen, pola, a11y.
+- `vitest` + 17 unit test (`format`, `order-rules`, `slugs`) via `npm test`.
+- CI `.github/workflows/ci.yml` (lint → typecheck → test → build).
+- `AGENTS.md` — daftar modul & aturan keamanan baru.
+
+## Risiko tersisa (diterima, terdokumentasi)
+
+- `braces`/`micromatch`/`fast-glob` (via eslint) & `vitest` — dev-only, belum ada patch upstream; tidak ter-bundle produksi.
+- Rate limit in-memory — reset saat restart & per-instance; cukup untuk PM2 single instance, pakai Redis untuk multi-instance.
+- CSP memakai `'unsafe-inline'` untuk script/style — kebutuhan Next.js tanpa middleware nonce.
+- `user-menu` memakai `<details>` — tidak menutup saat klik di luar (perilaku native, dapat ditingkatkan nanti).

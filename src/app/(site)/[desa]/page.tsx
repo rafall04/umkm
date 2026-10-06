@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getVillageBySlug, getVendorsByVillage, getProductsByVillage, getCategories } from "@/lib/queries";
+import { safeJsonLd } from "@/lib/format";
 import { ProductCard } from "@/components/product-card";
 import { VendorCard } from "@/components/vendor-card";
 import { SearchBar } from "@/components/search-bar";
@@ -49,7 +50,7 @@ export default async function DesaPage({ params }: Props) {
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
 
       {/* Hero desa */}

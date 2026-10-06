@@ -2,6 +2,20 @@ export function rupiah(n: number): string {
   return "Rp" + n.toLocaleString("id-ID");
 }
 
+/**
+ * JSON.stringify yang aman untuk ditanam di <script type="application/ld+json">.
+ * JSON.stringify tidak meng-escape `<`, sehingga teks berisi "</script>" dapat
+ * menutup tag script (stored XSS). Escape ke <.
+ */
+export function safeJsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
+/** Normalisasi nomor HP/WA Indonesia → "62xxx" untuk perbandingan & wa.me */
+export function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, "").replace(/^0/, "62");
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -11,11 +25,16 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// Bisnis berjalan di WIB — kunci timeZone agar tidak bergantung TZ server
+// (VPS default UTC → jam pesanan akan mundur 7 jam).
+const TZ = "Asia/Jakarta";
+
 export function formatDate(d: Date | string): string {
   return new Date(d).toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: TZ,
   });
 }
 
@@ -26,19 +45,20 @@ export function formatDateTime(d: Date | string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: TZ,
   });
 }
 
 export function orderCode(): string {
-  const now = new Date();
-  const ymd = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const ymd = new Date()
+    .toLocaleDateString("en-CA", { timeZone: TZ })
+    .replace(/-/g, "");
   const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
   return `ORD-${ymd}-${rand}`;
 }
 
 export function waLink(phone: string, message: string): string {
-  const normalized = phone.replace(/\D/g, "").replace(/^0/, "62");
-  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
 }
 
 export const ORDER_STATUS_LABEL: Record<string, string> = {

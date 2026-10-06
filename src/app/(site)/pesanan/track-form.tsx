@@ -30,6 +30,7 @@ export function TrackForm() {
           name="code"
           autoComplete="off"
           placeholder="Kode pesanan (ORD-...)"
+          aria-label="Kode pesanan"
           className="w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm uppercase outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -41,6 +42,7 @@ export function TrackForm() {
           type="tel"
           autoComplete="tel"
           placeholder="No. HP pembeli"
+          aria-label="Nomor HP pembeli"
           className="w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}

@@ -47,3 +47,26 @@ Marketplace multi-vendor untuk produk UMKM lokal (Kab. Bojonegoro). Next.js 16 (
 - Harga selalu `Int` rupiah; **harga & stok selalu diambil ulang dari DB saat checkout** (jangan percaya client)
 - Pembatalan/gagal/expired order mengembalikan stok (lihat `placeOrder`, `cancelOrder`, callback route)
 - Bahasa UI: Indonesia. Status enum pakai label dari `src/lib/format.ts`
+
+## Modul baru (pasca-remediasi)
+
+- `src/lib/config.ts` — konfig publik bersama server/client (`FLAT_SHIPPING_FEE`)
+- `src/lib/ui.ts` — `INPUT_CLS`, satu-satunya kelas input (lihat `DESIGN.md`)
+- `src/lib/rate-limit.ts` — rate limit in-memory; dipakai di login, register, checkout, lacak, bukti bayar
+- `src/lib/orders.ts` — `expireOrderIfStale` (sweep lazy kedaluwarsa + restore stok idempotent)
+- `src/lib/order-rules.ts` — `effectiveExpiry` murni (diuji di `order-rules.test.ts`)
+- `src/lib/slugs.ts` — `RESERVED_SLUGS` untuk slug wilayah
+
+## Aturan keamanan (wajib dijaga)
+
+- JSON-LD **selalu** lewat `safeJsonLd()` di `format.ts` — `JSON.stringify` mentah = stored XSS
+- Status item/order diubah dengan `updateMany` + guard status saat ini di **dalam** transaksi — jangan cek status di luar lalu update (race → restore stok ganda)
+- Callback gateway: status hanya dari verifikasi API/signature — jangan pernah fallback ke body callback; order terminal (`CANCELLED`/`EXPIRED`) tidak boleh di-resurrect
+- `requireRole()` membaca ulang `isActive`/`role`/`villageId` dari DB — jangan bypass dengan `auth()` langsung untuk aksi terproteksi
+- `adminVillageFilter()` fail-closed — admin tanpa `villageId` tidak melihat apa pun
+- No HP disimpan & dibandingkan ternormalisasi (`normalizePhone`)
+- Wilayah nonaktif disaring di semua query publik (`village: { isActive: true }`)
+- Ongkir dari `FLAT_SHIPPING_FEE` (lib/config) — satu sumber server & client
+- Komponen yang membaca `useCart`/localStorage wajib `useMounted()` dulu (hydration)
+- Order TRANSFER kedaluwarsa 24 jam (`expiredAt`) — `expireOrderIfStale` dipanggil di jalur baca & pembayaran
+- Test: `npm test` (vitest) — tambah test unit di samping modul murni (`*.test.ts`)

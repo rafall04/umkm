@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getVillageBySlug, getProductsByVillage } from "@/lib/queries";
+import { safeJsonLd } from "@/lib/format";
 import { ProductCard } from "@/components/product-card";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function CategoryPage({ params }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
       />
       <nav className="text-sm text-stone-500" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-brand-600">Beranda</Link>

@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { normalizePhone } from "@/lib/format";
+import { rateLimit } from "@/lib/rate-limit";
 import { Role } from "@/generated/prisma/enums";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -20,9 +22,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(credentials?.password ?? "");
         if (!identifier || !password) return null;
 
+        // Batasi percobaan login per identifier — mempersulit brute force
+        if (!rateLimit(`login:${identifier.toLowerCase()}`, 10, 5 * 60 * 1000)) {
+          return null;
+        }
+
         const user = await db.user.findFirst({
           where: {
-            OR: [{ email: identifier.toLowerCase() }, { phone: identifier }],
+            OR: [
+              { email: identifier.toLowerCase() },
+              { phone: identifier },
+              { phone: normalizePhone(identifier) },
+            ],
             isActive: true,
           },
         });

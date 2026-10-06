@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { registerBuyer } from "@/app/actions/auth";
+import { INPUT_CLS } from "@/lib/ui";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", password: "" });
@@ -11,8 +12,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const inputCls =
-    "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  const inputCls = INPUT_CLS;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,13 +35,13 @@ export default function RegisterPage() {
       </p>
 
       <div className="mt-6 space-y-3">
-        <input required placeholder="Nama lengkap" className={inputCls}
+        <input required placeholder="Nama lengkap" aria-label="Nama lengkap" className={inputCls}
           value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input required type="tel" placeholder="No. HP / WhatsApp" className={inputCls}
+        <input required type="tel" placeholder="No. HP / WhatsApp" aria-label="Nomor HP atau WhatsApp" className={inputCls}
           value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <input type="email" placeholder="Email (opsional)" className={inputCls}
+        <input type="email" placeholder="Email (opsional)" aria-label="Email (opsional)" className={inputCls}
           value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input required type="password" placeholder="Kata sandi (min. 6 karakter)" className={inputCls}
+        <input required type="password" placeholder="Kata sandi (min. 6 karakter)" aria-label="Kata sandi" className={inputCls}
           value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
       </div>
 

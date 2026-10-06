@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # Build tidak butuh DB hidup — semua halaman DB bertanda force-dynamic
+      - run: npm run build
+        env:
+          DATABASE_URL: postgresql://x:x@localhost:5432/x
+          AUTH_SECRET: ci-dummy-secret

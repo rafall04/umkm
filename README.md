@@ -17,6 +17,19 @@ npm run dev
 
 Buka http://localhost:3000
 
+Alternatif DB lokal tanpa Docker: `node scripts/dev-db.mjs` menjalankan
+PostgreSQL embedded di `./.pgdata` (port 5432, gitignored).
+
+## Perintah
+
+```bash
+npm run lint        # eslint
+npm run typecheck   # tsc --noEmit
+npm test            # vitest (unit: format, order rules, slugs)
+npm run build       # prisma generate + next build
+npm run icons       # regenerate ikon PWA
+```
+
 ## Fitur
 
 - **Pembeli** — katalog per desa/kategori, keranjang, checkout (COD / transfer / QRIS-VA via gateway), lacak pesanan tanpa akun (kode + no HP)
@@ -29,4 +42,17 @@ Buka http://localhost:3000
 ## Dokumentasi
 
 - Struktur & konvensi kode: `AGENTS.md`
+- Design system (token, komponen, a11y): `DESIGN.md`
 - Deploy ke Ubuntu Server (PM2 + Nginx + SSL): `DEPLOY.md`
+- Laporan audit keamanan/UI: `UI_AUDIT.md`
+
+## Catatan keamanan
+
+- `npm audit` melaporkan sisa high severity pada rantai `braces`/`micromatch`
+  (via `eslint-config-next`) dan `vitest` — semuanya **toolchain dev, tidak
+  ter-bundle ke produksi**; belum ada versi patch upstream. Jangan jalankan
+  `npm audit fix --force` (menurunkan `eslint-config-next` & `prisma` major).
+  `mysql2` & `deepmerge-ts` sudah di-override ke versi aman di `package.json`.
+- Login, registrasi, checkout, dan upload bukti bayar dibatasi via rate limit
+  in-memory (`src/lib/rate-limit.ts`) — cukup untuk single instance; pakai
+  Redis bila scale ke multi-instance.

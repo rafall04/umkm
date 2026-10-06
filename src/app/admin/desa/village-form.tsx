@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveVillage } from "@/app/actions/admin";
 import { slugify } from "@/lib/format";
+import { INPUT_CLS } from "@/lib/ui";
 
 export function VillageForm() {
   const [form, setForm] = useState({
@@ -17,8 +18,7 @@ export function VillageForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const inputCls =
-    "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  const inputCls = INPUT_CLS;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,18 +38,18 @@ export function VillageForm() {
       onSubmit={submit}
       className="max-w-lg space-y-3 rounded-2xl border border-stone-200 bg-white p-5"
     >
-      <input required placeholder="Nama wilayah (cth: Sumberagung)" className={inputCls}
+      <input required placeholder="Nama wilayah (cth: Sumberagung)" aria-label="Nama wilayah" className={inputCls}
         value={form.name}
         onChange={(e) => setForm({ ...form, name: e.target.value, slug: slugify(e.target.value.replace(/desa\s*/i, "")) })} />
-      <input required placeholder="Slug URL (cth: sumberagung)" className={inputCls}
+      <input required placeholder="Slug URL (cth: sumberagung)" aria-label="Slug URL" className={inputCls}
         value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
       <div className="grid grid-cols-2 gap-3">
-        <input required placeholder="Kecamatan" className={inputCls}
+        <input required placeholder="Kecamatan" aria-label="Kecamatan" className={inputCls}
           value={form.kecamatan} onChange={(e) => setForm({ ...form, kecamatan: e.target.value })} />
-        <input required placeholder="Kabupaten" className={inputCls}
+        <input required placeholder="Kabupaten" aria-label="Kabupaten" className={inputCls}
           value={form.kabupaten} onChange={(e) => setForm({ ...form, kabupaten: e.target.value })} />
       </div>
-      <textarea required rows={3} placeholder="Deskripsi wilayah untuk SEO" className={inputCls}
+      <textarea required rows={3} placeholder="Deskripsi wilayah untuk SEO" aria-label="Deskripsi wilayah" className={inputCls}
         value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
       {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <button

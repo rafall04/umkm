@@ -3,14 +3,22 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
-import { orderCode } from "@/lib/format";
+import { orderCode, normalizePhone } from "@/lib/format";
 import { getGateway } from "@/lib/payments";
+import { rateLimit } from "@/lib/rate-limit";
+import { expireOrderIfStale } from "@/lib/orders";
+import { FLAT_SHIPPING_FEE } from "@/lib/config";
 import { redirect } from "next/navigation";
 
 const checkoutSchema = z
   .object({
     buyerName: z.string().min(3, "Nama minimal 3 karakter"),
-    buyerPhone: z.string().min(9, "Nomor HP tidak valid").max(16),
+    // Disimpan dalam bentuk ternormalisasi (62xxx) agar lacak-pesanan
+    // cocok walau pembeli menulis 08xx / +62 / spasi.
+    buyerPhone: z.preprocess(
+      (v) => (typeof v === "string" ? normalizePhone(v) : v),
+      z.string().min(9, "Nomor HP tidak valid").max(16),
+    ),
     deliveryMethod: z.enum(["COD", "ANTAR_DESA", "AMBIL_SENDIRI"]),
     addressText: z.string().optional().default(""),
     note: z.string().optional(),
@@ -42,6 +50,10 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
 
   const session = await auth();
 
+  if (!rateLimit(`order:${data.buyerPhone}`, 10, 10 * 60 * 1000)) {
+    return { ok: false, error: "Terlalu banyak percobaan. Coba lagi beberapa menit." };
+  }
+
   // Pembayaran online hanya jika gateway sungguhan dikonfigurasi
   if (data.paymentMethod === "GATEWAY" && getGateway().name === "manual") {
     return {
@@ -56,6 +68,7 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
     where: {
       id: { in: productIds },
       isActive: true,
+      village: { isActive: true },
       vendor: { isActive: true, isVerified: true },
     },
     include: { vendor: true },
@@ -84,17 +97,13 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
     (sum, i) => sum + i.qty * byId.get(i.productId)!.price,
     0,
   );
-  const shippingFee =
-    data.deliveryMethod === "ANTAR_DESA"
-      ? Number(process.env.NEXT_PUBLIC_FLAT_SHIPPING_FEE ?? 5000)
-      : 0;
+  const shippingFee = data.deliveryMethod === "ANTAR_DESA" ? FLAT_SHIPPING_FEE : 0;
   const total = subtotal + shippingFee;
 
-  // Buat order + items + kurangi stok dalam satu transaksi
-  const code = orderCode();
-  let order;
-  try {
-    order = await db.$transaction(async (tx) => {
+  // Buat order + items + kurangi stok dalam satu transaksi.
+  // Retry dengan kode baru bila tabrakan unique (sangat jarang).
+  const createOrder = (code: string) =>
+    db.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
           code,
@@ -108,6 +117,11 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
           paymentStatus: "UNPAID",
           // COD langsung diproses vendor (bayar saat terima); TRANSFER/GATEWAY menunggu pembayaran
           status: data.paymentMethod === "COD" ? "PROCESSING" : "PENDING",
+          // TRANSFER kedaluwarsa 24 jam — stok tidak tersangkut selamanya
+          expiredAt:
+            data.paymentMethod === "TRANSFER"
+              ? new Date(Date.now() + 24 * 3600 * 1000)
+              : null,
           subtotal,
           shippingFee,
           total,
@@ -144,12 +158,25 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
 
       return created;
     });
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Gagal membuat pesanan.",
-    };
+
+  let order: Awaited<ReturnType<typeof createOrder>> | undefined;
+  let code = orderCode();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      order = await createOrder(code);
+      break;
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2002" && attempt < 2) {
+        code = orderCode();
+        continue;
+      }
+      return {
+        ok: false,
+        error: e instanceof Error ? e.message : "Gagal membuat pesanan.",
+      };
+    }
   }
+  if (!order) return { ok: false, error: "Gagal membuat pesanan." };
 
   // COD / transfer manual → langsung tampil halaman pesanan
   if (data.paymentMethod !== "GATEWAY") {
@@ -203,8 +230,11 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
 }
 
 export async function trackOrder(code: string, phone: string) {
+  const normalizedCode = code.trim().toUpperCase();
+  if (!rateLimit(`track:${normalizedCode}`, 30, 10 * 60 * 1000)) return null;
+
   const order = await db.order.findUnique({
-    where: { code: code.trim().toUpperCase() },
+    where: { code: normalizedCode },
     include: {
       items: {
         include: {
@@ -218,15 +248,31 @@ export async function trackOrder(code: string, phone: string) {
   });
   if (!order) return null;
 
-  // Hanya pemilik no HP atau user pemilik order yang boleh lihat
+  // Hanya pemilik no HP atau user pemilik order yang boleh lihat.
+  // Kedua sisi dinormalisasi — cocok juga untuk order lama (08xx).
   const session = await auth();
   const allowed =
-    order.buyerPhone === phone.trim() ||
+    normalizePhone(order.buyerPhone) === normalizePhone(phone) ||
     (session?.user?.id && session.user.id === order.buyerId) ||
     (session?.user?.role === "ADMIN_DESA" || session?.user?.role === "SUPERADMIN");
   if (!allowed) return null;
 
-  return order;
+  // Tandai kedaluwarsa bila batas bayar sudah lewat (lazy sweep)
+  await expireOrderIfStale(order.id);
+
+  return db.order.findUnique({
+    where: { id: order.id },
+    include: {
+      items: {
+        include: {
+          vendor: {
+            select: { name: true, village: true, whatsapp: true, qrisImage: true },
+          },
+        },
+      },
+      buyer: { select: { id: true } },
+    },
+  });
 }
 
 export async function cancelOrder(code: string, phone: string) {
@@ -237,11 +283,17 @@ export async function cancelOrder(code: string, phone: string) {
     order.paymentStatus !== "PAID"
   ) {
     await db.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: order.id },
+      // Guard status di dalam transaksi — pembatalan konkuren hanya
+      // mengembalikan stok sekali (updateMany count = 0 pada yang kalah).
+      const res = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          status: { in: ["PENDING", "PROCESSING"] },
+          paymentStatus: { not: "PAID" },
+        },
         data: { status: "CANCELLED" },
       });
-      // kembalikan stok
+      if (res.count === 0) return;
       await Promise.all(
         order.items.map((i) =>
           tx.product.update({

@@ -152,10 +152,16 @@ export async function updateOrderItemStatus(itemId: string, status: string) {
     where: { id: itemId },
     include: {
       vendor: { select: { villageId: true } },
-      order: { select: { paymentMethod: true, paymentStatus: true } },
+      order: { select: { status: true, paymentMethod: true, paymentStatus: true } },
     },
   });
   if (!item) return { ok: false as const, error: "Item tidak ditemukan" };
+
+  // Order terminal tidak boleh diubah — item pada order CANCELLED/EXPIRED
+  // sudah dikembalikan stoknya; membatalkan lagi = restore ganda.
+  if (["CANCELLED", "EXPIRED"].includes(item.order.status)) {
+    return { ok: false as const, error: "Pesanan sudah dibatalkan/kedaluwarsa" };
+  }
 
   // Otorisasi: vendor hanya item miliknya; ADMIN_DESA hanya item di wilayahnya
   if (vendor && item.vendorId !== vendor.id) {
@@ -182,37 +188,49 @@ export async function updateOrderItemStatus(itemId: string, status: string) {
     };
   }
 
-  await db.$transaction(async (tx) => {
-    await tx.orderItem.update({
-      where: { id: itemId },
-      data: { vendorStatus: status as "DIPROSES" | "DIKIRIM" | "SELESAI" | "DIBATALKAN" },
-    });
-
-    // Item dibatalkan → kembalikan stok produknya
-    if (status === "DIBATALKAN") {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: item.qty } },
+  try {
+    await db.$transaction(async (tx) => {
+      // Transisi dikunci pada status saat ini — klik ganda/permintaan
+      // konkuren tidak mengubah status atau mengembalikan stok dua kali.
+      const res = await tx.orderItem.updateMany({
+        where: { id: itemId, vendorStatus: item.vendorStatus },
+        data: { vendorStatus: status as "DIPROSES" | "DIKIRIM" | "SELESAI" | "DIBATALKAN" },
       });
-    }
+      if (res.count === 0) {
+        throw new Error("Status item sudah berubah — muat ulang halaman");
+      }
 
-    // Sinkronkan status order induk dari seluruh item
-    const siblings = await tx.orderItem.findMany({ where: { orderId: item.orderId } });
-    const statuses = siblings.map((s) => s.vendorStatus);
-    let orderStatus:
-      | "PROCESSING"
-      | "DELIVERED"
-      | "COMPLETED"
-      | "CANCELLED"
-      | undefined;
-    if (statuses.every((s) => s === "DIBATALKAN")) orderStatus = "CANCELLED";
-    else if (statuses.every((s) => s === "SELESAI" || s === "DIBATALKAN")) orderStatus = "COMPLETED";
-    else if (statuses.some((s) => s === "DIKIRIM")) orderStatus = "DELIVERED";
-    else if (statuses.some((s) => s === "DIPROSES")) orderStatus = "PROCESSING";
-    if (orderStatus) {
-      await tx.order.update({ where: { id: item.orderId }, data: { status: orderStatus } });
-    }
-  });
+      // Item dibatalkan → kembalikan stok produknya
+      if (status === "DIBATALKAN") {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.qty } },
+        });
+      }
+
+      // Sinkronkan status order induk dari seluruh item
+      const siblings = await tx.orderItem.findMany({ where: { orderId: item.orderId } });
+      const statuses = siblings.map((s) => s.vendorStatus);
+      let orderStatus:
+        | "PROCESSING"
+        | "DELIVERED"
+        | "COMPLETED"
+        | "CANCELLED"
+        | undefined;
+      if (statuses.every((s) => s === "DIBATALKAN")) orderStatus = "CANCELLED";
+      else if (statuses.every((s) => s === "SELESAI" || s === "DIBATALKAN")) orderStatus = "COMPLETED";
+      else if (statuses.some((s) => s === "DIKIRIM")) orderStatus = "DELIVERED";
+      else if (statuses.some((s) => s === "DIPROSES")) orderStatus = "PROCESSING";
+      if (orderStatus) {
+        await tx.order.update({ where: { id: item.orderId }, data: { status: orderStatus } });
+      }
+    });
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : "Gagal mengubah status",
+    };
+  }
 
   revalidatePath("/dashboard/pesanan");
   return { ok: true as const };

@@ -1,38 +1,24 @@
-const COLORS: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  PAID: "bg-blue-100 text-blue-800",
-  PROCESSING: "bg-indigo-100 text-indigo-800",
-  DELIVERED: "bg-violet-100 text-violet-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  CANCELLED: "bg-red-100 text-red-800",
-  EXPIRED: "bg-stone-200 text-stone-600",
-  UNPAID: "bg-amber-100 text-amber-800",
-  FAILED: "bg-red-100 text-red-800",
-  REFUNDED: "bg-stone-200 text-stone-600",
-  MENUNGGU: "bg-amber-100 text-amber-800",
-  DIPROSES: "bg-indigo-100 text-indigo-800",
-  DIKIRIM: "bg-violet-100 text-violet-800",
-  SELESAI: "bg-green-100 text-green-800",
-  DIBATALKAN: "bg-red-100 text-red-800",
+// Kelas harus literal agar terbaca scanner Tailwind — satu sumber per status,
+// tambahkan status baru di sini (bukan di dua map terpisah).
+const STATUS_COLORS: Record<string, { solid: string; outline: string }> = {
+  PENDING: { solid: "bg-amber-100 text-amber-800", outline: "border-amber-300 text-amber-700" },
+  PAID: { solid: "bg-blue-100 text-blue-800", outline: "border-blue-300 text-blue-700" },
+  PROCESSING: { solid: "bg-indigo-100 text-indigo-800", outline: "border-indigo-300 text-indigo-700" },
+  DELIVERED: { solid: "bg-violet-100 text-violet-800", outline: "border-violet-300 text-violet-700" },
+  COMPLETED: { solid: "bg-green-100 text-green-800", outline: "border-green-300 text-green-700" },
+  CANCELLED: { solid: "bg-red-100 text-red-800", outline: "border-red-300 text-red-700" },
+  EXPIRED: { solid: "bg-stone-200 text-stone-600", outline: "border-stone-300 text-stone-500" },
+  UNPAID: { solid: "bg-amber-100 text-amber-800", outline: "border-amber-300 text-amber-700" },
+  FAILED: { solid: "bg-red-100 text-red-800", outline: "border-red-300 text-red-700" },
+  REFUNDED: { solid: "bg-stone-200 text-stone-600", outline: "border-stone-300 text-stone-500" },
+  MENUNGGU: { solid: "bg-amber-100 text-amber-800", outline: "border-amber-300 text-amber-700" },
+  DIPROSES: { solid: "bg-indigo-100 text-indigo-800", outline: "border-indigo-300 text-indigo-700" },
+  DIKIRIM: { solid: "bg-violet-100 text-violet-800", outline: "border-violet-300 text-violet-700" },
+  SELESAI: { solid: "bg-green-100 text-green-800", outline: "border-green-300 text-green-700" },
+  DIBATALKAN: { solid: "bg-red-100 text-red-800", outline: "border-red-300 text-red-700" },
 };
 
-const OUTLINE: Record<string, string> = {
-  PENDING: "border-amber-300 text-amber-700",
-  PAID: "border-blue-300 text-blue-700",
-  PROCESSING: "border-indigo-300 text-indigo-700",
-  DELIVERED: "border-violet-300 text-violet-700",
-  COMPLETED: "border-green-300 text-green-700",
-  CANCELLED: "border-red-300 text-red-700",
-  EXPIRED: "border-stone-300 text-stone-500",
-  UNPAID: "border-amber-300 text-amber-700",
-  FAILED: "border-red-300 text-red-700",
-  REFUNDED: "border-stone-300 text-stone-500",
-  MENUNGGU: "border-amber-300 text-amber-700",
-  DIPROSES: "border-indigo-300 text-indigo-700",
-  DIKIRIM: "border-violet-300 text-violet-700",
-  SELESAI: "border-green-300 text-green-700",
-  DIBATALKAN: "border-red-300 text-red-700",
-};
+const FALLBACK = { solid: "bg-stone-200 text-stone-600", outline: "border-stone-300 text-stone-500" };
 
 export function StatusBadge({
   status,
@@ -43,12 +29,12 @@ export function StatusBadge({
   label: string;
   variant?: "solid" | "outline";
 }) {
-  const palette = variant === "outline" ? OUTLINE : COLORS;
+  const colors = STATUS_COLORS[status] ?? FALLBACK;
   return (
     <span
       className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${
         variant === "outline" ? "border bg-white" : ""
-      } ${palette[status] ?? "bg-stone-200 text-stone-600"}`}
+      } ${colors[variant]}`}
     >
       {label}
     </span>

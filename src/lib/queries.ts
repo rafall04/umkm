@@ -10,8 +10,8 @@ export const getVillages = cache(async () =>
 );
 
 export const getVillageBySlug = cache(async (slug: string) =>
-  db.village.findUnique({
-    where: { slug },
+  db.village.findFirst({
+    where: { slug, isActive: true },
     include: { _count: { select: { vendors: true, products: true } } },
   }),
 );
@@ -29,6 +29,7 @@ export const getProductsByVillage = cache(
       where: {
         villageId,
         isActive: true,
+        village: { isActive: true },
         vendor: { isActive: true, isVerified: true },
         ...(opts?.categoryId ? { categoryId: opts.categoryId } : {}),
         ...(opts?.q
@@ -48,7 +49,11 @@ export const getProductsByVillage = cache(
 
 export const getFeaturedProducts = cache(async (limit = 8) =>
   db.product.findMany({
-    where: { isActive: true, vendor: { isActive: true, isVerified: true } },
+    where: {
+      isActive: true,
+      village: { isActive: true },
+      vendor: { isActive: true, isVerified: true },
+    },
     include: { vendor: { include: { village: true } }, category: true, village: true },
     orderBy: [{ views: "desc" }, { createdAt: "desc" }],
     take: limit,
@@ -57,7 +62,12 @@ export const getFeaturedProducts = cache(async (limit = 8) =>
 
 export const getVendorsByVillage = cache(async (villageId: string) =>
   db.vendor.findMany({
-    where: { villageId, isActive: true, isVerified: true },
+    where: {
+      villageId,
+      isActive: true,
+      isVerified: true,
+      village: { isActive: true },
+    },
     include: {
       village: true,
       _count: { select: { products: true } },

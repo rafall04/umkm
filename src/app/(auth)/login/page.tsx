@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { INPUT_CLS } from "@/lib/ui";
 
 function LoginForm() {
   const [identifier, setIdentifier] = useState("");
@@ -31,8 +32,7 @@ function LoginForm() {
     router.refresh();
   }
 
-  const inputCls =
-    "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  const inputCls = INPUT_CLS;
 
   return (
     <form onSubmit={submit} className="w-full max-w-sm rounded-3xl border border-stone-200 bg-white p-8 shadow-sm">
@@ -43,6 +43,7 @@ function LoginForm() {
         <input
           required
           placeholder="Email atau No. HP"
+          aria-label="Email atau nomor HP"
           className={inputCls}
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
@@ -51,6 +52,7 @@ function LoginForm() {
           required
           type="password"
           placeholder="Kata sandi"
+          aria-label="Kata sandi"
           className={inputCls}
           value={password}
           onChange={(e) => setPassword(e.target.value)}

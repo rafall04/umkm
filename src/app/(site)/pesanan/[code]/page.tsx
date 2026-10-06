@@ -39,6 +39,7 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
             type="tel"
             required
             placeholder="No. HP pembeli"
+            aria-label="Nomor HP pembeli"
             className="w-full rounded-xl border border-stone-300 px-4 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             defaultValue={hp}
           />
