@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Tudung Saji">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d1e7c9"/>
+      <stop offset="1" stop-color="#6d9f5f"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <text x="400" y="330" font-size="200" text-anchor="middle">&#x1F372;</text>
+  <text x="400" y="500" font-family="system-ui, sans-serif" font-size="52" font-weight="700" fill="#2f5230" text-anchor="middle">Tudung Saji Anyam</text>
+</svg>

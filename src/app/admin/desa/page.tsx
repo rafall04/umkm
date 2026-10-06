@@ -1,0 +1,53 @@
+import { db } from "@/lib/db";
+import { requireRole } from "@/lib/session";
+import { VillageForm } from "./village-form";
+import { VillageToggle } from "./village-toggle";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminVillagesPage() {
+  await requireRole("SUPERADMIN");
+
+  const villages = await db.village.findMany({
+    include: { _count: { select: { vendors: true, products: true } } },
+    orderBy: { name: "asc" },
+  });
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold">Kelola Wilayah</h1>
+
+      <div className="mt-6 space-y-3">
+        {villages.map((v) => (
+          <div key={v.id} className="rounded-2xl border border-stone-200 bg-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">
+                  {v.name}
+                  {!v.isActive && (
+                    <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                      Nonaktif
+                    </span>
+                  )}
+                </p>
+                <p className="text-sm text-stone-500">
+                  /{v.slug} · Kec. {v.kecamatan}, {v.kabupaten} · {v._count.vendors} UMKM ·{" "}
+                  {v._count.products} produk
+                </p>
+              </div>
+              <VillageToggle villageId={v.id} isActive={v.isActive} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="mt-10 text-xl font-bold">Tambah Wilayah Baru</h2>
+      <p className="mt-1 text-sm text-stone-500">
+        Sistem ini mendukung penambahan wilayah baru kapan saja — slug menjadi subfolder URL.
+      </p>
+      <div className="mt-4">
+        <VillageForm />
+      </div>
+    </div>
+  );
+}

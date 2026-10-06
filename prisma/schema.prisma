@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Desa ────────────────────────────────────────────────────────────────────
+
+model Village {
+  id          String   @id @default(cuid())
+  slug        String   @unique // "dander" | "tanjungharjo"
+  name        String // "Desa Dander"
+  kecamatan   String
+  kabupaten   String   @default("Bojonegoro")
+  provinsi    String   @default("Jawa Timur")
+  description String   @db.Text
+  heroImage   String?
+  lat         Float?
+  lng         Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  admins   User[]
+  vendors  Vendor[]
+  products Product[]
+
+  @@map("villages")
+}
+
+// ─── Pengguna ────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPERADMIN
+  ADMIN_DESA
+  VENDOR
+  BUYER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  phone        String?  @unique
+  name         String
+  passwordHash String?
+  role         Role     @default(BUYER)
+  villageId    String? // scope untuk ADMIN_DESA
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  village Village? @relation(fields: [villageId], references: [id])
+  vendor  Vendor? // toko yang dimiliki (role VENDOR)
+  orders  Order[]
+
+  @@map("users")
+}
+
+// ─── UMKM / Vendor ───────────────────────────────────────────────────────────
+
+model Vendor {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String   @db.Text
+  logo        String?
+  banner      String?
+  ownerId     String   @unique
+  villageId   String
+  phone       String?
+  whatsapp    String?
+  address     String   @db.Text
+  qrisImage   String? // QRIS statis milik toko (diupload vendor)
+  isVerified  Boolean  @default(false) // verifikasi oleh admin desa
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner      User        @relation(fields: [ownerId], references: [id])
+  village    Village     @relation(fields: [villageId], references: [id])
+  products   Product[]
+  orderItems OrderItem[]
+
+  @@index([villageId, isActive])
+  @@map("vendors")
+}
+
+// ─── Kategori & Produk ───────────────────────────────────────────────────────
+
+model Category {
+  id       String @id @default(cuid())
+  slug     String @unique
+  name     String
+  icon     String?
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String   @db.Text
+  price       Int // rupiah
+  stock       Int      @default(0)
+  unit        String   @default("pcs") // pcs, kg, paket, porsi
+  images      String[]
+  villageId   String
+  vendorId    String
+  categoryId  String
+  isActive    Boolean  @default(true)
+  views       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  village    Village     @relation(fields: [villageId], references: [id])
+  vendor     Vendor      @relation(fields: [vendorId], references: [id])
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@index([villageId, isActive])
+  @@index([vendorId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// ─── Pesanan ─────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING // menunggu pembayaran
+  PAID // sudah dibayar, menunggu diproses vendor
+  PROCESSING
+  DELIVERED // sedang/selesai dikirim
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  GATEWAY // Tripay/iPaymu (QRIS, VA, e-wallet)
+  TRANSFER // transfer manual + upload bukti
+  COD // bayar di tempat
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING // menunggu konfirmasi (transfer manual)
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum DeliveryMethod {
+  COD // dibayar & diserahkan di tempat
+  ANTAR_DESA // diantar, ongkir flat
+  AMBIL_SENDIRI // pembeli ambil di lokasi UMKM
+}
+
+enum VendorItemStatus {
+  MENUNGGU
+  DIPROSES
+  DIKIRIM
+  SELESAI
+  DIBATALKAN
+}
+
+model Order {
+  id             String         @id @default(cuid())
+  code           String         @unique // ORD-20261003-XXXX
+  buyerId        String?
+  buyerName      String
+  buyerPhone     String
+  status         OrderStatus    @default(PENDING)
+  paymentMethod  PaymentMethod
+  paymentChannel String? // qris, BCA, dsb (dari gateway)
+  paymentStatus  PaymentStatus  @default(UNPAID)
+  paymentRef     String? // reference dari gateway
+  paymentUrl     String? // halaman pembayaran gateway
+  paymentProof   String? // foto bukti bayar (TRANSFER/QRIS ke toko)
+  paidAt         DateTime?
+  deliveryMethod DeliveryMethod
+  addressText    String         @db.Text
+  note           String?
+  subtotal       Int
+  shippingFee    Int            @default(0)
+  total          Int
+  expiredAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  buyer       User?           @relation(fields: [buyerId], references: [id])
+  items       OrderItem[]
+  paymentLogs PaymentLog[]
+
+  @@index([buyerPhone])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String           @id @default(cuid())
+  orderId      String
+  vendorId     String
+  productId    String
+  productName  String // snapshot
+  productImage String?
+  price        Int // snapshot harga saat checkout
+  qty          Int
+  subtotal     Int
+  vendorStatus VendorItemStatus @default(MENUNGGU)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendor  Vendor  @relation(fields: [vendorId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([vendorId, vendorStatus])
+  @@map("order_items")
+}
+
+model PaymentLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  gateway   String // "tripay" | "ipaymu" | "manual"
+  event     String // "callback" | "status_check" | "created"
+  payload   Json
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("payment_logs")
+}
+
+// ─── Konten Desa (berita/info — mendukung pSEO) ─────────────────────────────
+// (model Page & SiteSetting dihapus — belum dipakai; tambahkan kembali saat
+// fitur konten/setting benar-benar diimplementasikan)
+
