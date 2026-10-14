@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { getFeaturedProducts, getVillages, getCategories } from "@/lib/queries";
 import { ProductCard } from "@/components/product-card";
 import { InstallPrompt } from "@/components/install-prompt";
@@ -25,28 +24,16 @@ export default async function HomePage() {
             Produk Asli Lokal, Langsung dari Pembuatnya
           </h1>
           <p className="mt-4 max-w-xl text-lg text-brand-100">
-            Belanja makanan, kerajinan, dan hasil bumi terbaik dari UMKM
-            se-Kabupaten Bojonegoro. Setiap pembelian mendukung ekonomi
-            warga.
+            Makanan, kerajinan, dan hasil bumi dari pelaku usaha di seluruh
+            Kabupaten Bojonegoro — dijual langsung oleh pembuatnya.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            {villages.slice(0, 3).map((v) => (
-              <Link
-                key={v.slug}
-                href={`/${v.slug}`}
-                className="rounded-xl bg-white px-6 py-3 font-semibold text-brand-800 transition hover:bg-brand-50"
-              >
-                Jelajahi {v.name} →
-              </Link>
-            ))}
-            {villages.length > 3 && (
-              <Link
-                href="/wilayah"
-                className="rounded-xl bg-white px-6 py-3 font-semibold text-brand-800 transition hover:bg-brand-50"
-              >
-                Semua Wilayah →
-              </Link>
-            )}
+            <Link
+              href="/wilayah"
+              className="rounded-xl bg-white px-6 py-3 font-semibold text-brand-800 transition hover:bg-brand-50"
+            >
+              Jelajahi Wilayah →
+            </Link>
             <Link
               href="/produk"
               className="rounded-xl border-2 border-white/40 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
@@ -73,53 +60,28 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Kartu wilayah — maks 4 teramai; sisanya lewat direktori /wilayah */}
+      {/* Daftar wilayah aktif — ringkas, tanpa poster; detail di /wilayah */}
       <section className="mx-auto max-w-7xl px-4 pb-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[...villages]
-            .sort((a, b) => b._count.products - a._count.products)
-            .slice(0, 4)
-            .map((v) => (
+        <div className="flex items-end justify-between">
+          <h2 className="text-2xl font-bold">Wilayah</h2>
+          <Link href="/wilayah" className="text-sm font-semibold text-brand-600 hover:underline">
+            Lihat semua →
+          </Link>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {villages.slice(0, 8).map((v) => (
             <Link
               key={v.slug}
               href={`/${v.slug}`}
-              className="group relative flex min-h-[240px] flex-col justify-end overflow-hidden rounded-3xl bg-stone-800 p-8 text-white"
+              className="rounded-2xl border border-stone-200 bg-white p-5 transition hover:border-brand-300 hover:shadow-sm"
             >
-              {v.heroImage && (
-                <Image
-                  src={v.heroImage}
-                  alt=""
-                  fill
-                  sizes="(max-width: 640px) 100vw, 50vw"
-                  className="object-cover transition duration-500 group-hover:scale-105"
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-stone-900/95 via-stone-900/75 via-55% to-stone-900/15" />
-              <div className="relative">
-                <p className="text-sm text-stone-300">
-                  Kecamatan {v.kecamatan}, {v.kabupaten}
-                </p>
-                <h2 className="mt-1 text-3xl font-bold">{v.name}</h2>
-                <p className="mt-2 line-clamp-2 max-w-md text-sm text-stone-300">
-                  {v.description}
-                </p>
-                <p className="mt-4 text-sm font-semibold text-brand-300">
-                  {v._count.vendors} UMKM · {v._count.products} produk →
-                </p>
-              </div>
+              <p className="font-semibold">{v.name}</p>
+              <p className="mt-1 text-sm text-stone-500">
+                Kec. {v.kecamatan} · {v._count.vendors} UMKM · {v._count.products} produk
+              </p>
             </Link>
           ))}
         </div>
-        {villages.length > 4 && (
-          <div className="mt-4 text-center">
-            <Link
-              href="/wilayah"
-              className="text-sm font-semibold text-brand-600 hover:underline"
-            >
-              Lihat semua {villages.length} wilayah →
-            </Link>
-          </div>
-        )}
       </section>
 
       {/* Produk unggulan */}
@@ -162,8 +124,8 @@ export default async function HomePage() {
         <div className="rounded-3xl bg-accent-500/10 p-8 text-center sm:p-12">
           <h2 className="text-2xl font-bold">Punya Usaha Rumahan?</h2>
           <p className="mx-auto mt-2 max-w-lg text-stone-600">
-            Daftarkan UMKM Anda secara gratis. Tim kami akan memverifikasi
-            dan produk Anda langsung bisa dilihat pembeli.
+            Daftarkan gratis — produk Anda tampil di katalog setelah
+            diverifikasi.
           </p>
           <Link
             href="/daftar-umkm"

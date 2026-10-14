@@ -159,9 +159,7 @@ export default async function ReceiptPage({ params, searchParams }: Props) {
         <p className="my-2 overflow-hidden whitespace-nowrap">{divider}</p>
 
         <p className="text-center">
-          Terima kasih telah berbelanja!
-          <br />
-          Setiap pembelian mendukung UMKM lokal.
+          Terima kasih telah berbelanja.
         </p>
         <p className="mt-3 text-center text-[9px]">Dicetak {formatDateTime(new Date())}</p>
       </div>

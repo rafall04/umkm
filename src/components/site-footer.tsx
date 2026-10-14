@@ -12,8 +12,8 @@ export async function SiteFooter() {
             <span>🛖</span> Pasar UMKM
           </p>
           <p className="mt-3 text-sm leading-relaxed text-stone-400">
-            Marketplace produk UMKM dari penjual lokal ke rumah Anda. Mendukung
-            ekonomi lokal Kabupaten Bojonegoro.
+            Pasar produk UMKM Kabupaten Bojonegoro — dari penjual lokal ke
+            rumah Anda.
           </p>
         </div>
         <div>

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Semua Wilayah",
   description:
-    "Jelajahi pasar UMKM per wilayah di Kabupaten Bojonegoro — pilih desa Anda untuk melihat produk dan pelaku usaha lokalnya.",
+    "Daftar wilayah pasar UMKM Kabupaten Bojonegoro — pilih wilayah Anda untuk melihat produk dan pelaku usaha setempat.",
 };
 
 export default async function VillagesDirectoryPage() {
@@ -27,9 +27,9 @@ export default async function VillagesDirectoryPage() {
     <div className="mx-auto max-w-7xl px-4 py-10">
       <h1 className="text-2xl font-bold sm:text-3xl">Jelajahi Wilayah</h1>
       <p className="mt-2 max-w-2xl text-sm text-stone-500">
-        Pasar UMKM hadir per wilayah di Kabupaten Bojonegoro. Pilih wilayah Anda
-        untuk melihat produk dan pelaku usaha lokalnya. Wilayah baru dibuka
-        bertahap — daftarkan usaha Anda untuk membuka wilayah Anda.
+        Pilih wilayah untuk melihat produk dan pelaku usaha setempat.
+        Wilayah dibuka bertahap — pendaftaran UMKM pertama di sebuah wilayah
+        membuka halamannya.
       </p>
 
       {villages.length === 0 && (

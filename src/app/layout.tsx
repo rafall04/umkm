@@ -19,8 +19,6 @@ export const metadata: Metadata = {
   description:
     "Marketplace produk UMKM se-Kabupaten Bojonegoro. Belanja langsung dari pelaku usaha lokal di wilayah Anda.",
   keywords: [
-    "UMKM Dander",
-    "UMKM Tanjungharjo",
     "UMKM Bojonegoro",
     "produk UMKM",
     "oleh-oleh Bojonegoro",
