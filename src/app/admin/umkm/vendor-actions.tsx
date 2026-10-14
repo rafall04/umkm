@@ -2,16 +2,24 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setVendorVerified, setVendorActive } from "@/app/actions/admin";
+import { setVendorVerified, setVendorActive, setVillageActive } from "@/app/actions/admin";
 
 export function VendorActions({
   vendorId,
   isVerified,
   isActive,
+  villageInactive,
+  villageId,
+  villageName,
+  canActivateVillage,
 }: {
   vendorId: string;
   isVerified: boolean;
   isActive: boolean;
+  villageInactive?: boolean;
+  villageId?: string;
+  villageName?: string;
+  canActivateVillage?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -24,7 +32,16 @@ export function VendorActions({
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap justify-end gap-2">
+      {villageInactive && canActivateVillage && villageId && (
+        <button
+          disabled={loading}
+          onClick={() => run(() => setVillageActive(villageId, true))}
+          className="rounded-lg border border-brand-300 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+        >
+          Aktifkan {villageName}
+        </button>
+      )}
       {!isVerified && (
         <button
           disabled={loading}

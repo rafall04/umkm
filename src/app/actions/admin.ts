@@ -1,9 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
+import bcrypt from "bcryptjs";
 import { requireRole, adminVillageFilter } from "@/lib/session";
 import { recordOrderStatus } from "@/lib/orders";
 import { RESERVED_SLUGS } from "@/lib/slugs";
+import { normalizePhone } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -139,5 +141,72 @@ export async function setVillageActive(villageId: string, active: boolean) {
   await requireRole("SUPERADMIN");
   await db.village.update({ where: { id: villageId }, data: { isActive: active } });
   revalidatePath("/admin/desa");
+  revalidatePath("/admin/umkm");
+  return { ok: true as const };
+}
+
+const villageAdminSchema = z.object({
+  name: z.string().min(3, "Nama minimal 3 karakter"),
+  phone: z.preprocess(
+    (v) => (typeof v === "string" ? normalizePhone(v) : v),
+    z.string().min(9, "Nomor HP tidak valid").max(16),
+  ),
+  email: z.string().email("Email tidak valid").optional().or(z.literal("")),
+  password: z.string().min(8, "Kata sandi minimal 8 karakter"),
+  villageId: z.string().min(1, "Pilih wilayah"),
+});
+
+/** Buat akun ADMIN_DESA ber-scope satu wilayah — hanya SUPERADMIN. */
+export async function createVillageAdmin(input: unknown) {
+  await requireRole("SUPERADMIN");
+  const parsed = villageAdminSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message };
+  }
+  const d = parsed.data;
+
+  const village = await db.village.findUnique({ where: { id: d.villageId } });
+  if (!village) return { ok: false as const, error: "Wilayah tidak ditemukan" };
+
+  const existing = await db.user.findFirst({
+    where: { OR: [{ phone: d.phone }, ...(d.email ? [{ email: d.email.toLowerCase() }] : [])] },
+    select: { id: true },
+  });
+  if (existing) return { ok: false as const, error: "Nomor HP / email sudah terdaftar" };
+
+  try {
+    await db.user.create({
+      data: {
+        name: d.name,
+        email: d.email ? d.email.toLowerCase() : null,
+        phone: d.phone,
+        passwordHash: await bcrypt.hash(d.password, 10),
+        role: "ADMIN_DESA",
+        villageId: d.villageId,
+      },
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      return { ok: false as const, error: "Email atau nomor HP sudah terdaftar" };
+    }
+    throw e;
+  }
+  revalidatePath("/admin/pengguna");
+  return { ok: true as const };
+}
+
+/** Sembunyikan/tampilkan ulasan — ADMIN_DESA hanya untuk wilayahnya. */
+export async function setReviewPublished(reviewId: string, published: boolean) {
+  const user = await requireRole("ADMIN_DESA", "SUPERADMIN");
+  const filter = adminVillageFilter(user);
+  const res = await db.review.updateMany({
+    where: {
+      id: reviewId,
+      ...(filter.villageId ? { vendor: { villageId: filter.villageId } } : {}),
+    },
+    data: { isPublished: published },
+  });
+  if (res.count === 0) return { ok: false as const, error: "Ulasan tidak ditemukan" };
+  revalidatePath("/admin/ulasan");
   return { ok: true as const };
 }

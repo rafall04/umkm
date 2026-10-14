@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ["/admin", "📊 Ringkasan"],
     ["/admin/umkm", "🏪 UMKM"],
     ["/admin/pesanan", "🧾 Pesanan"],
+    ["/admin/ulasan", "⭐ Ulasan"],
     ...(isSuper
       ? ([["/admin/pengguna", "👥 Pengguna"], ["/admin/desa", "🗺️ Wilayah"]] as [string, string][])
       : []),

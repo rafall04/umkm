@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { getVillageBySlug, getProductsByVillage } from "@/lib/queries";
+import { getVillageBySlug, getProductsByVillage, getRatingMap } from "@/lib/queries";
 import { safeJsonLd } from "@/lib/format";
 import { ProductCard } from "@/components/product-card";
 
@@ -33,6 +33,7 @@ export default async function CategoryPage({ params }: Props) {
   if (!category) redirect(`/${village.slug}/produk`);
 
   const products = await getProductsByVillage(village.id, { categoryId: category.id });
+  const ratings = await getRatingMap(products.map((p) => p.id));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -73,6 +74,8 @@ export default async function CategoryPage({ params }: Props) {
             vendorName={p.vendor.name}
             villageSlug={village.slug}
             villageName={village.name}
+            ratingAvg={ratings.get(p.id)?.avg}
+            ratingCount={ratings.get(p.id)?.count}
           />
         ))}
       </div>

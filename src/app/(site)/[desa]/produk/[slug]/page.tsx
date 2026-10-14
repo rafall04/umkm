@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { getProductsByVillage } from "@/lib/queries";
+import { getProductsByVillage, getRatingMap } from "@/lib/queries";
 import { AddToCart } from "@/components/add-to-cart";
 import { ProductCard } from "@/components/product-card";
 import { rupiah, safeJsonLd } from "@/lib/format";
@@ -78,6 +78,7 @@ export default async function ProductPage({ params }: Props) {
   ]);
   const ratingAvg = ratingAgg._avg.rating;
   const ratingCount = ratingAgg._count._all;
+  const relatedRatings = await getRatingMap(related.map((p) => p.id));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -260,6 +261,8 @@ export default async function ProductPage({ params }: Props) {
                 vendorName={p.vendor.name}
                 villageSlug={product.village.slug}
                 villageName={product.village.name}
+                ratingAvg={relatedRatings.get(p.id)?.avg}
+                ratingCount={relatedRatings.get(p.id)?.count}
               />
             ))}
           </div>

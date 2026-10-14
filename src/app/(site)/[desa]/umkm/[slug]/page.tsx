@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { getRatingMap } from "@/lib/queries";
 import { ProductCard } from "@/components/product-card";
 import { waLink, safeJsonLd } from "@/lib/format";
 
@@ -39,6 +40,7 @@ export default async function VendorPage({ params }: Props) {
   const { desa, slug } = await params;
   const vendor = await getVendor(desa, slug);
   if (!vendor) notFound();
+  const ratings = await getRatingMap(vendor.products.map((p) => p.id));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -125,6 +127,8 @@ export default async function VendorPage({ params }: Props) {
             vendorName={vendor.name}
             villageSlug={vendor.village.slug}
             villageName={vendor.village.name}
+            ratingAvg={ratings.get(p.id)?.avg}
+            ratingCount={ratings.get(p.id)?.count}
           />
         ))}
       </div>

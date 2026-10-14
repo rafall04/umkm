@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { getCategories } from "@/lib/queries";
+import { getCategories, getRatingMap } from "@/lib/queries";
 import { ProductCard } from "@/components/product-card";
 import { SearchBar } from "@/components/search-bar";
 import { ProductToolbar } from "@/components/product-toolbar";
@@ -52,6 +52,7 @@ export default async function AllProductsPage({ searchParams }: Props) {
             ? { views: "desc" }
             : { createdAt: "desc" },
   });
+  const ratings = await getRatingMap(products.map((p) => p.id));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
@@ -103,6 +104,8 @@ export default async function AllProductsPage({ searchParams }: Props) {
             villageSlug={p.village.slug}
             villageName={p.village.name}
             showVillage
+            ratingAvg={ratings.get(p.id)?.avg}
+            ratingCount={ratings.get(p.id)?.count}
           />
         ))}
       </div>

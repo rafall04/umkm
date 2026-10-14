@@ -13,6 +13,8 @@ type ProductCardProps = {
   villageSlug: string;
   villageName: string;
   showVillage?: boolean;
+  ratingAvg?: number;
+  ratingCount?: number;
 };
 
 export function ProductCard({
@@ -26,6 +28,8 @@ export function ProductCard({
   villageSlug,
   villageName,
   showVillage = false,
+  ratingAvg,
+  ratingCount,
 }: ProductCardProps) {
   const discount =
     compareAtPrice && compareAtPrice > price
@@ -69,6 +73,12 @@ export function ProductCard({
           {vendorName}
           {showVillage && ` · ${villageName}`}
         </p>
+        {ratingAvg != null && ratingAvg > 0 && (
+          <p className="mt-0.5 text-xs text-amber-600">
+            ★ {ratingAvg.toFixed(1)}
+            <span className="text-stone-400"> ({ratingCount})</span>
+          </p>
+        )}
       </div>
     </Link>
   );

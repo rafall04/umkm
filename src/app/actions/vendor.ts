@@ -157,6 +157,57 @@ async function syncVariants(
   }
 }
 
+/**
+ * Tandai order COD sudah dibayar tunai — untuk kasus ambil sendiri /
+ * serah terima sebelum item ditandai selesai. Idempotent via guard UNPAID.
+ */
+export async function markCodPaid(orderId: string) {
+  const user = await requireRole("VENDOR", "ADMIN_DESA", "SUPERADMIN");
+  const vendor = await getMyVendor(user.id);
+  const isAdmin = user.role === "ADMIN_DESA" || user.role === "SUPERADMIN";
+  if (!vendor && !isAdmin) return { ok: false as const, error: "Tidak berwenang" };
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      status: true,
+      paymentMethod: true,
+      paymentStatus: true,
+      items: { select: { vendorId: true, vendor: { select: { villageId: true } } } },
+    },
+  });
+  if (!order || order.paymentMethod !== "COD") {
+    return { ok: false as const, error: "Hanya order COD yang bisa ditandai lunas" };
+  }
+  if (["CANCELLED", "EXPIRED"].includes(order.status)) {
+    return { ok: false as const, error: "Pesanan sudah batal/kedaluwarsa" };
+  }
+  if (vendor && !order.items.some((i) => i.vendorId === vendor.id)) {
+    return { ok: false as const, error: "Bukan pesanan toko Anda" };
+  }
+  if (user.role === "ADMIN_DESA") {
+    const inVillage = order.items.some((i) => i.vendor.villageId === user.villageId);
+    if (!inVillage) return { ok: false as const, error: "Pesanan di luar wilayah Anda" };
+  }
+
+  await db.$transaction(async (tx) => {
+    const res = await tx.order.updateMany({
+      where: { id: order.id, paymentStatus: "UNPAID" },
+      data: { paymentStatus: "PAID", paidAt: new Date() },
+    });
+    if (res.count > 0) {
+      await recordOrderStatus(tx, order.id, order.status, {
+        note: "Pembayaran COD ditandai lunas",
+        actor: vendor ? `vendor:${vendor.id}` : `admin:${user.id}`,
+      });
+    }
+  });
+
+  revalidatePath("/dashboard/pesanan");
+  return { ok: true as const };
+}
+
 export async function deleteProduct(productId: string) {
   const user = await requireRole("VENDOR", "ADMIN_DESA", "SUPERADMIN");
   const vendor = await getMyVendor(user.id);
@@ -279,6 +330,24 @@ export async function updateOrderItemStatus(itemId: string, status: string) {
       });
       if (res.count === 0) {
         throw new Error("Status item sudah berubah — muat ulang halaman");
+      }
+
+      // COD: item SELESAI berarti serah terima & tunai diterima → lunas
+      if (
+        status === "SELESAI" &&
+        item.order.paymentMethod === "COD" &&
+        item.order.paymentStatus === "UNPAID"
+      ) {
+        const paid = await tx.order.updateMany({
+          where: { id: item.orderId, paymentStatus: "UNPAID" },
+          data: { paymentStatus: "PAID", paidAt: new Date() },
+        });
+        if (paid.count > 0) {
+          await recordOrderStatus(tx, item.orderId, item.order.status, {
+            note: "Pembayaran COD diterima (serah terima selesai)",
+            actor: vendor ? `vendor:${vendor.id}` : `admin:${user.id}`,
+          });
+        }
       }
 
       // Item dibatalkan → kembalikan stok (varian bila ada)

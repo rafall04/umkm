@@ -60,6 +60,22 @@ export const getFeaturedProducts = cache(async (limit = 8) =>
   }),
 );
 
+/** Peta rating produk — untuk badge ★ di kartu, hanya ulasan terbit. */
+export async function getRatingMap(productIds: string[]) {
+  if (productIds.length === 0) {
+    return new Map<string, { avg: number; count: number }>();
+  }
+  const rows = await db.review.groupBy({
+    by: ["productId"],
+    where: { productId: { in: productIds }, isPublished: true },
+    _avg: { rating: true },
+    _count: { _all: true },
+  });
+  return new Map(
+    rows.map((r) => [r.productId, { avg: r._avg.rating ?? 0, count: r._count._all }]),
+  );
+}
+
 export const getVendorsByVillage = cache(async (villageId: string) =>
   db.vendor.findMany({
     where: {

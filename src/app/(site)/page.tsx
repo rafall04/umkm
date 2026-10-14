@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getFeaturedProducts, getVillages, getCategories } from "@/lib/queries";
+import { getFeaturedProducts, getVillages, getCategories, getRatingMap } from "@/lib/queries";
 import { ProductCard } from "@/components/product-card";
 import { InstallPrompt } from "@/components/install-prompt";
 
@@ -11,6 +11,7 @@ export default async function HomePage() {
     getFeaturedProducts(8),
     getCategories(),
   ]);
+  const ratings = await getRatingMap(products.map((p) => p.id));
 
   return (
     <div>
@@ -106,6 +107,8 @@ export default async function HomePage() {
               villageSlug={p.village.slug}
               villageName={p.village.name}
               showVillage
+              ratingAvg={ratings.get(p.id)?.avg}
+              ratingCount={ratings.get(p.id)?.count}
             />
           ))}
         </div>

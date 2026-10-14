@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getVillageBySlug, getVendorsByVillage, getProductsByVillage, getCategories } from "@/lib/queries";
+import { getVillageBySlug, getVendorsByVillage, getProductsByVillage, getCategories, getRatingMap } from "@/lib/queries";
 import { safeJsonLd } from "@/lib/format";
 import { ProductCard } from "@/components/product-card";
 import { VendorCard } from "@/components/vendor-card";
@@ -33,6 +33,7 @@ export default async function DesaPage({ params }: Props) {
     getProductsByVillage(village.id, { limit: 8 }),
     getCategories(),
   ]);
+  const ratings = await getRatingMap(products.map((p) => p.id));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -136,6 +137,8 @@ export default async function DesaPage({ params }: Props) {
               vendorName={p.vendor.name}
               villageSlug={village.slug}
               villageName={village.name}
+              ratingAvg={ratings.get(p.id)?.avg}
+              ratingCount={ratings.get(p.id)?.count}
             />
           ))}
         </div>

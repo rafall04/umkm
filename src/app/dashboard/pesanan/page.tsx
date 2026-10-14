@@ -4,6 +4,7 @@ import { rupiah, formatDateTime, waLink, VENDOR_STATUS_LABEL, DELIVERY_LABEL } f
 import { StatusBadge } from "@/components/status-badge";
 import { ItemStatusButtons } from "./item-status-buttons";
 import { PrintReceiptButton } from "@/components/print-receipt-button";
+import { MarkPaidButton } from "./mark-paid-button";
 import { PaymentReviewButtons } from "./payment-review-buttons";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -100,6 +101,9 @@ export default async function VendorOrdersPage({
           // Item hanya boleh diproses setelah pembayaran lunas (COD: tunai di tempat)
           const canProgress =
             order.paymentMethod === "COD" || order.paymentStatus === "PAID";
+          // COD yang belum lunas — vendor menandai saat tunai diterima
+          const codUnpaid =
+            order.paymentMethod === "COD" && order.paymentStatus === "UNPAID";
 
           return (
             <div key={item.id} className="rounded-2xl border border-stone-200 bg-white p-5">
@@ -174,6 +178,7 @@ export default async function VendorOrdersPage({
                   ) : canProgress ? (
                     <ItemStatusButtons itemId={item.id} current={item.vendorStatus} />
                   ) : null}
+                  {codUnpaid && <MarkPaidButton orderId={order.id} />}
                   <PrintReceiptButton
                     code={order.code}
                     className="mt-2 text-xs font-medium text-stone-500 hover:text-stone-800"

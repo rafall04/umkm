@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getVillageBySlug, getProductsByVillage, getCategories } from "@/lib/queries";
+import { getVillageBySlug, getProductsByVillage, getCategories, getRatingMap } from "@/lib/queries";
 import { ProductCard } from "@/components/product-card";
 import { SearchBar } from "@/components/search-bar";
 
@@ -35,6 +35,7 @@ export default async function DesaProductsPage({ params, searchParams }: Props) 
     q: sp.q,
     categoryId: activeCategory?.id,
   });
+  const ratings = await getRatingMap(products.map((p) => p.id));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
@@ -88,6 +89,8 @@ export default async function DesaProductsPage({ params, searchParams }: Props) 
             vendorName={p.vendor.name}
             villageSlug={village.slug}
             villageName={village.name}
+            ratingAvg={ratings.get(p.id)?.avg}
+            ratingCount={ratings.get(p.id)?.count}
           />
         ))}
       </div>

@@ -26,34 +26,58 @@ export default async function DashboardPage() {
     );
   }
 
-  const [productCount, pendingOrders, totalRevenue, recentItems] = await Promise.all([
-    db.product.count({ where: { vendorId: vendor.id, isActive: true } }),
-    db.orderItem.count({
-      where: {
-        vendorId: vendor.id,
-        vendorStatus: "MENUNGGU",
-        order: { status: { notIn: ["PENDING", "CANCELLED", "EXPIRED"] } },
-      },
-    }),
-    db.orderItem.aggregate({
-      _sum: { subtotal: true },
-      where: {
-        vendorId: vendor.id,
-        order: { paymentStatus: "PAID" },
-        vendorStatus: { not: "DIBATALKAN" },
-      },
-    }),
-    db.orderItem.findMany({
-      where: { vendorId: vendor.id },
-      include: { order: true },
-      orderBy: { order: { createdAt: "desc" } },
-      take: 5,
-    }),
-  ]);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const [productCount, pendingOrders, totalRevenue, revenue30d, bestSellers, recentItems] =
+    await Promise.all([
+      db.product.count({ where: { vendorId: vendor.id, isActive: true } }),
+      db.orderItem.count({
+        where: {
+          vendorId: vendor.id,
+          vendorStatus: "MENUNGGU",
+          order: { status: { notIn: ["PENDING", "CANCELLED", "EXPIRED"] } },
+        },
+      }),
+      db.orderItem.aggregate({
+        _sum: { subtotal: true },
+        where: {
+          vendorId: vendor.id,
+          order: { paymentStatus: "PAID" },
+          vendorStatus: { not: "DIBATALKAN" },
+        },
+      }),
+      db.orderItem.aggregate({
+        _sum: { subtotal: true },
+        where: {
+          vendorId: vendor.id,
+          order: { paymentStatus: "PAID", createdAt: { gte: thirtyDaysAgo } },
+          vendorStatus: { not: "DIBATALKAN" },
+        },
+      }),
+      // Produk terlaris dari item yang sudah dibayar
+      db.orderItem.groupBy({
+        by: ["productName"],
+        where: {
+          vendorId: vendor.id,
+          order: { paymentStatus: "PAID" },
+          vendorStatus: { not: "DIBATALKAN" },
+        },
+        _sum: { qty: true, subtotal: true },
+        orderBy: { _sum: { qty: "desc" } },
+        take: 5,
+      }),
+      db.orderItem.findMany({
+        where: { vendorId: vendor.id },
+        include: { order: true },
+        orderBy: { order: { createdAt: "desc" } },
+        take: 5,
+      }),
+    ]);
 
   const stats = [
     { label: "Produk Aktif", value: String(productCount), href: "/dashboard/produk" },
     { label: "Pesanan Baru", value: String(pendingOrders), href: "/dashboard/pesanan" },
+    { label: "Omzet 30 Hari", value: rupiah(revenue30d._sum.subtotal ?? 0), href: "/dashboard/pesanan" },
     { label: "Total Pendapatan", value: rupiah(totalRevenue._sum.subtotal ?? 0), href: "/dashboard/pesanan" },
   ];
 
@@ -61,7 +85,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Ringkasan {vendor.name}</h1>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
           <Link
             key={s.label}
@@ -73,6 +97,37 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* Produk terlaris */}
+      {bestSellers.length > 0 && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h2 className="font-semibold">Produk Terlaris</h2>
+          <ul className="mt-3 space-y-2">
+            {bestSellers.map((b, i) => {
+              const max = bestSellers[0]._sum.qty ?? 1;
+              const pct = Math.max(6, Math.round(((b._sum.qty ?? 0) / max) * 100));
+              return (
+                <li key={b.productName} className="text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">
+                      {i + 1}. {b.productName}
+                    </span>
+                    <span className="text-stone-500">
+                      {b._sum.qty} terjual · {rupiah(b._sum.subtotal ?? 0)}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-stone-100">
+                    <div
+                      className="h-2 rounded-full bg-brand-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-stone-200 bg-white">
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-3">

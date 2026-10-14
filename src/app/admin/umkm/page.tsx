@@ -48,11 +48,21 @@ export default async function AdminVendorsPage() {
                   {v.village.name} · {v._count.products} produk · Pemilik: {v.owner.name} (
                   {v.owner.phone ?? v.owner.email})
                 </p>
+                {!v.village.isActive && (
+                  <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+                    ⚠️ Wilayah &ldquo;{v.village.name}&rdquo; belum aktif — produk tidak tampil publik
+                    meski UMKM terverifikasi.
+                  </p>
+                )}
               </div>
               <VendorActions
                 vendorId={v.id}
                 isVerified={v.isVerified}
                 isActive={v.isActive}
+                villageInactive={!v.village.isActive}
+                villageId={v.villageId}
+                villageName={v.village.name}
+                canActivateVillage={user.role === "SUPERADMIN"}
               />
             </div>
           </div>
