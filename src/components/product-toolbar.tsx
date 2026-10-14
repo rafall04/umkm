@@ -32,6 +32,7 @@ export function ProductToolbar({ basePath, villages }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
       <select
+        name="desa"
         aria-label="Filter wilayah"
         className={selectCls}
         value={sp.get("desa") ?? ""}
@@ -45,6 +46,7 @@ export function ProductToolbar({ basePath, villages }: Props) {
         ))}
       </select>
       <select
+        name="urut"
         aria-label="Urutkan"
         className={selectCls}
         value={sp.get("urut") ?? ""}

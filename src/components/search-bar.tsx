@@ -17,6 +17,7 @@ export function SearchBar({ basePath, placeholder }: { basePath: string; placeho
     >
       <input
         type="search"
+        name="q"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder ?? "Cari produk..."}
