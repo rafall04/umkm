@@ -169,6 +169,12 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           </form>
         )}
         <Link
+          href={`/pesanan/${order.code}/struk${hp ? `?hp=${encodeURIComponent(hp)}` : ""}`}
+          className="rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-semibold hover:bg-stone-50"
+        >
+          🖨️ Cetak Struk
+        </Link>
+        <Link
           href="/produk"
           className="rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-semibold hover:bg-stone-50"
         >

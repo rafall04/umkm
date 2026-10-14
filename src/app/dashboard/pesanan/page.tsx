@@ -3,6 +3,7 @@ import { requireRole, getMyVendor } from "@/lib/session";
 import { rupiah, formatDateTime, VENDOR_STATUS_LABEL, DELIVERY_LABEL } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { ItemStatusButtons } from "./item-status-buttons";
+import { PrintReceiptButton } from "@/components/print-receipt-button";
 import { PaymentReviewButtons } from "./payment-review-buttons";
 import { redirect } from "next/navigation";
 
@@ -39,7 +40,8 @@ export default async function VendorOrdersPage() {
             isTransfer && order.paymentStatus === "PENDING" && order.paymentProof;
           const awaitingPayment = isTransfer && order.paymentStatus === "UNPAID";
           // Item hanya boleh diproses setelah pembayaran lunas (COD: tunai di tempat)
-          const canProgress = !isTransfer || order.paymentStatus === "PAID";
+          const canProgress =
+            order.paymentMethod === "COD" || order.paymentStatus === "PAID";
 
           return (
             <div key={item.id} className="rounded-2xl border border-stone-200 bg-white p-5">
@@ -99,6 +101,10 @@ export default async function VendorOrdersPage() {
                   ) : canProgress ? (
                     <ItemStatusButtons itemId={item.id} current={item.vendorStatus} />
                   ) : null}
+                  <PrintReceiptButton
+                    code={order.code}
+                    className="mt-2 text-xs font-medium text-stone-500 hover:text-stone-800"
+                  />
                 </div>
               </div>
             </div>
