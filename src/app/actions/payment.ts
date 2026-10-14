@@ -1,8 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
-import { requireRole, getMyVendor, adminVillageFilter } from "@/lib/session";
+import {
+  requireRole,
+  getMyVendor,
+  getFreshSessionUser,
+  adminVillageFilter,
+} from "@/lib/session";
 import { normalizePhone } from "@/lib/format";
 import { rateLimit } from "@/lib/rate-limit";
 import { expireOrderIfStale } from "@/lib/orders";
@@ -61,16 +65,23 @@ export async function submitPaymentProof(
       paymentMethod: true,
       paymentStatus: true,
       paymentProof: true,
+      items: { select: { vendor: { select: { villageId: true } } } },
     },
   });
   if (!order) return { ok: false, error: "Pesanan tidak ditemukan" };
 
-  const session = await auth();
+  // Admin dibatasi scope-nya: ADMIN_DESA hanya order wilayahnya
+  // (fail-closed bila villageId kosong), SUPERADMIN bebas.
+  const user = await getFreshSessionUser();
+  const isAdmin =
+    user?.role === "SUPERADMIN" ||
+    (user?.role === "ADMIN_DESA" &&
+      !!user.villageId &&
+      order.items.some((i) => i.vendor.villageId === user.villageId));
   const allowed =
     normalizePhone(order.buyerPhone) === normalizePhone(phone) ||
-    (session?.user?.id && session.user.id === order.buyerId) ||
-    session?.user?.role === "ADMIN_DESA" ||
-    session?.user?.role === "SUPERADMIN";
+    (user?.id && user.id === order.buyerId) ||
+    isAdmin;
   if (!allowed) return { ok: false, error: "Nomor HP tidak cocok dengan pesanan" };
 
   if (order.paymentMethod !== "TRANSFER") {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getFreshSessionUser } from "@/lib/session";
+import { rateLimit } from "@/lib/rate-limit";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
@@ -13,9 +14,15 @@ const ALLOWED: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || !["VENDOR", "ADMIN_DESA", "SUPERADMIN"].includes(session.user.role)) {
+  // Klaim role/isActive dibaca ulang dari DB — JWT basi tidak boleh
+  // memberi akses upload ke user yang sudah dinonaktifkan/diturunkan.
+  const user = await getFreshSessionUser();
+  if (!user || !["VENDOR", "ADMIN_DESA", "SUPERADMIN"].includes(user.role)) {
     return NextResponse.json({ error: "Tidak berwenang" }, { status: 401 });
+  }
+  // Batasi laju unggah per user — file 3MB × tak terbatas bisa memenuhi disk
+  if (!rateLimit(`upload:${user.id}`, 30, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Terlalu banyak unggahan. Coba lagi nanti." }, { status: 429 });
   }
 
   const formData = await request.formData();

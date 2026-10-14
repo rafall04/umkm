@@ -7,6 +7,7 @@ import { orderCode, normalizePhone } from "@/lib/format";
 import { getGateway } from "@/lib/payments";
 import { rateLimit } from "@/lib/rate-limit";
 import { expireOrderIfStale } from "@/lib/orders";
+import { getFreshSessionUser } from "@/lib/session";
 import { FLAT_SHIPPING_FEE } from "@/lib/config";
 import { redirect } from "next/navigation";
 
@@ -250,11 +251,18 @@ export async function trackOrder(code: string, phone: string) {
 
   // Hanya pemilik no HP atau user pemilik order yang boleh lihat.
   // Kedua sisi dinormalisasi — cocok juga untuk order lama (08xx).
-  const session = await auth();
+  // Admin dibatasi scope-nya: ADMIN_DESA hanya order wilayahnya
+  // (fail-closed bila villageId kosong), SUPERADMIN bebas.
+  const user = await getFreshSessionUser();
+  const isAdmin =
+    user?.role === "SUPERADMIN" ||
+    (user?.role === "ADMIN_DESA" &&
+      !!user.villageId &&
+      order.items.some((i) => i.vendor.village.id === user.villageId));
   const allowed =
     normalizePhone(order.buyerPhone) === normalizePhone(phone) ||
-    (session?.user?.id && session.user.id === order.buyerId) ||
-    (session?.user?.role === "ADMIN_DESA" || session?.user?.role === "SUPERADMIN");
+    (user?.id && user.id === order.buyerId) ||
+    isAdmin;
   if (!allowed) return null;
 
   // Tandai kedaluwarsa bila batas bayar sudah lewat (lazy sweep)
@@ -262,6 +270,34 @@ export async function trackOrder(code: string, phone: string) {
 
   return db.order.findUnique({
     where: { id: order.id },
+    include: {
+      items: {
+        include: {
+          vendor: {
+            select: { name: true, village: true, whatsapp: true, qrisImage: true },
+          },
+        },
+      },
+      buyer: { select: { id: true } },
+    },
+  });
+}
+
+// Struk: akses sama dengan trackOrder (pembeli via HP/session, admin ber-scope),
+// ditambah vendor pemilik order — vendor butuh mencetak struk dari dashboard.
+export async function getReceiptOrder(code: string, phone: string) {
+  const order = await trackOrder(code, phone);
+  if (order) return order;
+  const user = await getFreshSessionUser();
+  if (user?.role !== "VENDOR") return null;
+  const own = await db.order.findUnique({
+    where: { code: code.trim().toUpperCase() },
+    select: { id: true, items: { select: { vendor: { select: { ownerId: true } } } } },
+  });
+  if (!own || !own.items.some((i) => i.vendor.ownerId === user.id)) return null;
+  await expireOrderIfStale(own.id);
+  return db.order.findUnique({
+    where: { id: own.id },
     include: {
       items: {
         include: {

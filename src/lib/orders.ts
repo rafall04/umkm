@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { effectiveExpiry } from "@/lib/order-rules";
+import { effectiveExpiry, stockStillHeld } from "@/lib/order-rules";
 
 export { effectiveExpiry } from "@/lib/order-rules";
 
@@ -16,6 +16,7 @@ export async function expireOrderIfStale(orderId: string): Promise<void> {
       id: true,
       status: true,
       paymentMethod: true,
+      paymentStatus: true,
       expiredAt: true,
       createdAt: true,
     },
@@ -26,11 +27,26 @@ export async function expireOrderIfStale(orderId: string): Promise<void> {
   if (!expiry || expiry > new Date()) return;
 
   await db.$transaction(async (tx) => {
+    // 1) Klaim transisi status — hanya satu pemenang (callback/lacak konkuren).
     const res = await tx.order.updateMany({
       where: { id: order.id, status: "PENDING" },
-      data: { status: "EXPIRED", paymentStatus: "EXPIRED" },
+      data: { status: "EXPIRED" },
     });
-    if (res.count === 0) return; // request lain sudah menangani
+    if (res.count === 0) return;
+
+    // 2) Stok hanya dikembalikan bila masih ditahan order — dibaca di dalam
+    // tx SEBELUM paymentStatus ditimpa. Order yang callback-nya sudah
+    // FAILED/EXPIRED sudah direstore oleh jalur callback — jangan dobel.
+    const cur = await tx.order.findUniqueOrThrow({
+      where: { id: order.id },
+      select: { paymentStatus: true },
+    });
+    const held = stockStillHeld(cur);
+    await tx.order.update({
+      where: { id: order.id },
+      data: { paymentStatus: "EXPIRED" },
+    });
+    if (!held) return;
 
     const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
     for (const i of items) {

@@ -52,8 +52,14 @@ export async function confirmManualPayment(orderId: string) {
     };
   }
 
-  await db.order.update({
-    where: { id: orderId },
+  // Guard di dalam update — antara findFirst dan write order bisa dibatalkan
+  // pembeli; jangan pernah menulis PAID ke order terminal.
+  const res = await db.order.updateMany({
+    where: {
+      id: orderId,
+      status: { notIn: ["CANCELLED", "EXPIRED"] },
+      paymentStatus: { not: "PAID" },
+    },
     data: {
       paymentStatus: "PAID",
       paidAt: new Date(),
@@ -61,6 +67,9 @@ export async function confirmManualPayment(orderId: string) {
       ...(order.status === "PENDING" ? { status: "PAID" as const } : {}),
     },
   });
+  if (res.count === 0) {
+    return { ok: false as const, error: "Status pesanan sudah berubah — muat ulang" };
+  }
   revalidatePath("/admin/pesanan");
   return { ok: true as const };
 }

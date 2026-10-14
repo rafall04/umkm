@@ -28,7 +28,9 @@ function LoginForm() {
       setLoading(false);
       return;
     }
-    router.push(searchParams.get("callbackUrl") ?? "/");
+    // Hanya path lokal — callbackUrl absolute (https://…) = open redirect
+    const cb = searchParams.get("callbackUrl");
+    router.push(cb?.startsWith("/") && !cb.startsWith("//") ? cb : "/");
     router.refresh();
   }
 

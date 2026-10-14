@@ -8,6 +8,22 @@ export async function getSessionUser() {
   return session?.user ?? null;
 }
 
+/**
+ * Versi non-redirect dari requireRole — untuk jalur yang boleh anonim
+ * (lacak pesanan, bukti bayar). Klaim role/scope JWT tidak dipercaya:
+ * selalu dibaca ulang dari DB; user nonaktif dianggap anonim.
+ */
+export async function getFreshSessionUser() {
+  const user = await getSessionUser();
+  if (!user) return null;
+  const fresh = await db.user.findUnique({
+    where: { id: user.id },
+    select: { isActive: true, role: true, villageId: true },
+  });
+  if (!fresh?.isActive) return null;
+  return { ...user, role: fresh.role, villageId: fresh.villageId };
+}
+
 export async function requireRole(...roles: Role[]) {
   const user = await getSessionUser();
   if (!user) redirect("/login");

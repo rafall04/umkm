@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireRole, getMyVendor } from "@/lib/session";
+import { requiresPaidBeforeProgress } from "@/lib/order-rules";
 import { slugify } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 
@@ -176,15 +177,17 @@ export async function updateOrderItemStatus(itemId: string, status: string) {
     return { ok: false as const, error: "Transisi status tidak valid" };
   }
 
-  // Order QRIS/transfer: item baru boleh diproses setelah pembayaran dikonfirmasi
+  // Order QRIS/transfer/online: item baru boleh diproses setelah pembayaran
+  // dikonfirmasi (COD dikecualikan — dibayar saat serah terima).
   if (
-    item.order.paymentMethod === "TRANSFER" &&
-    item.order.paymentStatus !== "PAID" &&
-    status !== "DIBATALKAN"
+    requiresPaidBeforeProgress(
+      { paymentMethod: item.order.paymentMethod, paymentStatus: item.order.paymentStatus },
+      status,
+    )
   ) {
     return {
       ok: false as const,
-      error: "Pembayaran belum dikonfirmasi — konfirmasi bukti bayar dulu",
+      error: "Pembayaran belum dikonfirmasi — konfirmasi pembayaran dulu",
     };
   }
 
