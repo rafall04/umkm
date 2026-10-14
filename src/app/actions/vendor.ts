@@ -83,6 +83,26 @@ export async function saveProduct(input: unknown) {
   return { ok: true as const };
 }
 
+/** Edit stok cepat dari daftar produk — tanpa masuk form penuh. */
+export async function updateProductStock(productId: string, stock: number) {
+  const user = await requireRole("VENDOR", "ADMIN_DESA", "SUPERADMIN");
+  const vendor = await getMyVendor(user.id);
+  if (!vendor) return { ok: false as const, error: "Anda tidak memiliki toko" };
+
+  const parsed = z.number().int().min(0).max(999_999).safeParse(stock);
+  if (!parsed.success) return { ok: false as const, error: "Stok tidak valid" };
+
+  const res = await db.product.updateMany({
+    where: { id: productId, vendorId: vendor.id },
+    data: { stock: parsed.data },
+  });
+  if (res.count === 0) return { ok: false as const, error: "Produk tidak ditemukan" };
+
+  revalidatePath("/dashboard/produk");
+  revalidatePath(`/${vendor.village.slug}/produk`);
+  return { ok: true as const };
+}
+
 export async function deleteProduct(productId: string) {
   const user = await requireRole("VENDOR", "ADMIN_DESA", "SUPERADMIN");
   const vendor = await getMyVendor(user.id);

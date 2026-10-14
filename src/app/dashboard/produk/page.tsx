@@ -3,6 +3,7 @@ import Image from "next/image";
 import { db } from "@/lib/db";
 import { requireRole, getMyVendor } from "@/lib/session";
 import { rupiah } from "@/lib/format";
+import { StockEditor } from "./stock-editor";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,7 @@ export default async function VendorProductsPage() {
                 )}
               </p>
               <p className="text-sm text-stone-500">
-                {rupiah(p.price)}/{p.unit} · Stok {p.stock} · {p.category.name}
+                {rupiah(p.price)}/{p.unit} · Stok <StockEditor productId={p.id} stock={p.stock} /> · {p.category.name}
               </p>
             </div>
             <Link

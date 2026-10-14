@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveExpiry,
+  orderProgressSteps,
   requiresPaidBeforeProgress,
   stockStillHeld,
   TRANSFER_PAYMENT_WINDOW_MS,
@@ -91,5 +92,55 @@ describe("stockStillHeld", () => {
     for (const s of ["FAILED", "EXPIRED", "PAID", "REFUNDED"] as const) {
       expect(stockStillHeld({ paymentStatus: s })).toBe(false);
     }
+  });
+});
+
+const prog = (over: Partial<Parameters<typeof orderProgressSteps>[0]>) =>
+  orderProgressSteps({
+    status: "PENDING",
+    paymentMethod: "TRANSFER",
+    paymentStatus: "UNPAID",
+    deliveryMethod: "ANTAR_DESA",
+    ...over,
+  });
+
+describe("orderProgressSteps", () => {
+  it("order terminal → null (badge halaman yang bicara)", () => {
+    expect(prog({ status: "CANCELLED" })).toBeNull();
+    expect(prog({ status: "EXPIRED" })).toBeNull();
+  });
+
+  it("order baru TRANSFER: hanya langkah 'dibuat' yang selesai", () => {
+    const steps = prog({})!;
+    expect(steps.map((s) => s.done)).toEqual([true, false, false, false, false]);
+    expect(steps[1].label).toBe("Transfer dikonfirmasi");
+  });
+
+  it("TRANSFER PAID: pembayaran selesai, proses belum", () => {
+    const steps = prog({ paymentStatus: "PAID", status: "PAID" })!;
+    expect(steps.map((s) => s.done)).toEqual([true, true, false, false, false]);
+  });
+
+  it("DELIVERED menandai proses+kirim selesai", () => {
+    const steps = prog({ status: "DELIVERED", paymentStatus: "PAID" })!;
+    expect(steps.map((s) => s.done)).toEqual([true, true, true, true, false]);
+  });
+
+  it("COMPLETED menandai semua langkah selesai", () => {
+    const steps = prog({ status: "COMPLETED", paymentStatus: "PAID" })!;
+    expect(steps.every((s) => s.done)).toBe(true);
+  });
+
+  it("COD: label bayar di tempat; lunas dianggap saat order selesai", () => {
+    const cod = { paymentMethod: "COD", paymentStatus: "UNPAID" };
+    expect(prog({ ...cod, status: "DELIVERED" })![1].done).toBe(false);
+    const done = prog({ ...cod, status: "COMPLETED" })!;
+    expect(done[1].label).toBe("Bayar di tempat");
+    expect(done.every((s) => s.done)).toBe(true);
+  });
+
+  it("AMBIL_SENDIRI: langkah kirim berlabel 'Siap diambil'", () => {
+    const steps = prog({ deliveryMethod: "AMBIL_SENDIRI" })!;
+    expect(steps[3].label).toBe("Siap diambil");
   });
 });

@@ -4,6 +4,7 @@ import { getVillages } from "@/lib/queries";
 import { CartButton } from "./cart-button";
 import { VillageSwitcher } from "./village-switcher";
 import { UserMenu } from "./user-menu";
+import { HeaderSearch } from "./header-search";
 
 export async function SiteHeader() {
   const [session, villages] = await Promise.all([auth(), getVillages()]);
@@ -34,6 +35,9 @@ export async function SiteHeader() {
         </div>
 
         <nav className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="hidden lg:block">
+            <HeaderSearch />
+          </div>
           <Link
             href="/pesanan"
             className="hidden rounded-lg px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100 sm:block"
@@ -43,6 +47,10 @@ export async function SiteHeader() {
           <CartButton />
           <UserMenu user={user} />
         </nav>
+      </div>
+      {/* Baris pencarian untuk layar kecil — header utama terlalu penuh */}
+      <div className="border-t border-stone-100 px-4 py-2 lg:hidden">
+        <HeaderSearch />
       </div>
     </header>
   );

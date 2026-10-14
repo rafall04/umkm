@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCategories } from "@/lib/queries";
 import { ProductCard } from "@/components/product-card";
 import { SearchBar } from "@/components/search-bar";
+import { ProductToolbar } from "@/components/product-toolbar";
+import { getVillages } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +16,13 @@ export const metadata: Metadata = {
     "Jelajahi seluruh produk UMKM dari pelaku usaha lokal se-Kabupaten Bojonegoro.",
 };
 
-type Props = { searchParams: Promise<{ q?: string; kategori?: string; desa?: string }> };
+type Props = {
+  searchParams: Promise<{ q?: string; kategori?: string; desa?: string; urut?: string }>;
+};
 
 export default async function AllProductsPage({ searchParams }: Props) {
   const sp = await searchParams;
-  const categories = await getCategories();
+  const [categories, villages] = await Promise.all([getCategories(), getVillages()]);
   const activeCategory = sp.kategori
     ? categories.find((c) => c.slug === sp.kategori)
     : undefined;
@@ -38,7 +43,14 @@ export default async function AllProductsPage({ searchParams }: Props) {
         : {}),
     },
     include: { vendor: true, village: true },
-    orderBy: { createdAt: "desc" },
+    orderBy:
+      sp.urut === "murah"
+        ? { price: "asc" }
+        : sp.urut === "mahal"
+          ? { price: "desc" }
+          : sp.urut === "populer"
+            ? { views: "desc" }
+            : { createdAt: "desc" },
   });
 
   return (
@@ -51,6 +63,12 @@ export default async function AllProductsPage({ searchParams }: Props) {
           </p>
         </div>
         <SearchBar basePath="/produk" placeholder="Cari di semua wilayah..." />
+      </div>
+
+      <div className="mt-4">
+        <Suspense>
+          <ProductToolbar basePath="/produk" villages={villages} />
+        </Suspense>
       </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-2">

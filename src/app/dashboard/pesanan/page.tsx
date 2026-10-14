@@ -1,15 +1,31 @@
 import { db } from "@/lib/db";
 import { requireRole, getMyVendor } from "@/lib/session";
-import { rupiah, formatDateTime, VENDOR_STATUS_LABEL, DELIVERY_LABEL } from "@/lib/format";
+import { rupiah, formatDateTime, waLink, VENDOR_STATUS_LABEL, DELIVERY_LABEL } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
 import { ItemStatusButtons } from "./item-status-buttons";
 import { PrintReceiptButton } from "@/components/print-receipt-button";
 import { PaymentReviewButtons } from "./payment-review-buttons";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorOrdersPage() {
+type Tab = "baru" | "konfirmasi" | "diproses" | "selesai";
+
+const TABS: { key: Tab | "semua"; label: string }[] = [
+  { key: "semua", label: "Semua" },
+  { key: "baru", label: "Pesanan Baru" },
+  { key: "konfirmasi", label: "Cek Bukti Bayar" },
+  { key: "diproses", label: "Diproses" },
+  { key: "selesai", label: "Selesai" },
+];
+
+export default async function VendorOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
   const user = await requireRole("VENDOR", "ADMIN_DESA", "SUPERADMIN");
   const vendor = await getMyVendor(user.id);
   if (!vendor) redirect("/dashboard");
@@ -25,6 +41,28 @@ export default async function VendorOrdersPage() {
     orderBy: { order: { createdAt: "desc" } },
   });
 
+  const isAwaitingReview = (o: (typeof items)[number]["order"]) =>
+    o.paymentMethod === "TRANSFER" && o.paymentStatus === "PENDING" && !!o.paymentProof;
+
+  const counts: Record<Tab | "semua", number> = {
+    semua: items.length,
+    baru: items.filter((i) => i.vendorStatus === "MENUNGGU" && !isAwaitingReview(i.order)).length,
+    konfirmasi: items.filter((i) => isAwaitingReview(i.order)).length,
+    diproses: items.filter((i) => ["DIPROSES", "DIKIRIM"].includes(i.vendorStatus)).length,
+    selesai: items.filter((i) => ["SELESAI", "DIBATALKAN"].includes(i.vendorStatus)).length,
+  };
+
+  const active = (TABS.some((t) => t.key === tab) ? tab : "semua") as Tab | "semua";
+  const filtered =
+    active === "semua"
+      ? items
+      : items.filter((i) => {
+          if (active === "baru") return i.vendorStatus === "MENUNGGU" && !isAwaitingReview(i.order);
+          if (active === "konfirmasi") return isAwaitingReview(i.order);
+          if (active === "diproses") return ["DIPROSES", "DIKIRIM"].includes(i.vendorStatus);
+          return ["SELESAI", "DIBATALKAN"].includes(i.vendorStatus);
+        });
+
   return (
     <div>
       <h1 className="text-2xl font-bold">Pesanan Masuk</h1>
@@ -32,12 +70,32 @@ export default async function VendorOrdersPage() {
         Pesanan COD & yang sudah dibayar. Tinjau bukti bayar lalu ubah status sesuai progres pengiriman.
       </p>
 
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={t.key === "semua" ? "/dashboard/pesanan" : `/dashboard/pesanan?tab=${t.key}`}
+            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+              active === t.key
+                ? "bg-brand-600 text-white"
+                : "border border-stone-300 text-stone-600 hover:border-brand-400"
+            }`}
+          >
+            {t.label}
+            {counts[t.key] > 0 && (
+              <span className={`ml-1.5 ${active === t.key ? "text-brand-100" : "text-stone-400"}`}>
+                {counts[t.key]}
+              </span>
+            )}
+          </Link>
+        ))}
+      </div>
+
       <div className="mt-6 space-y-4">
-        {items.map((item) => {
+        {filtered.map((item) => {
           const { order } = item;
           const isTransfer = order.paymentMethod === "TRANSFER";
-          const awaitingReview =
-            isTransfer && order.paymentStatus === "PENDING" && order.paymentProof;
+          const awaitingReview = isAwaitingReview(order);
           const awaitingPayment = isTransfer && order.paymentStatus === "UNPAID";
           // Item hanya boleh diproses setelah pembayaran lunas (COD: tunai di tempat)
           const canProgress =
@@ -54,7 +112,18 @@ export default async function VendorOrdersPage() {
                     {order.code} · {formatDateTime(order.createdAt)}
                   </p>
                   <p className="mt-1 text-sm">
-                    {order.buyerName} · {order.buyerPhone}
+                    {order.buyerName} · {order.buyerPhone}{" "}
+                    <a
+                      href={waLink(
+                        order.buyerPhone,
+                        `Halo ${order.buyerName}, saya ${vendor.name} dari Pasar UMKM terkait pesanan ${order.code}.`,
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-green-700 hover:underline"
+                    >
+                      Chat WA →
+                    </a>
                   </p>
                   <p className="mt-1 text-sm text-stone-600">
                     {DELIVERY_LABEL[order.deliveryMethod]}
@@ -110,9 +179,9 @@ export default async function VendorOrdersPage() {
             </div>
           );
         })}
-        {items.length === 0 && (
+        {filtered.length === 0 && (
           <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-stone-500">
-            Belum ada pesanan masuk.
+            {items.length === 0 ? "Belum ada pesanan masuk." : "Tidak ada pesanan di tab ini."}
           </p>
         )}
       </div>

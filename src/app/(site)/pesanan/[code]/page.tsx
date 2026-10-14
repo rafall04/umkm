@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { trackOrder, cancelOrder } from "@/app/actions/checkout";
 import { StatusBadge } from "@/components/status-badge";
+import { OrderTimeline } from "@/components/order-timeline";
+import { orderProgressSteps } from "@/lib/order-rules";
 import { PaymentSection } from "./payment-section";
 import {
   rupiah,
@@ -76,6 +78,15 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           />
         </div>
       </div>
+
+      {(() => {
+        const steps = orderProgressSteps(order);
+        return steps ? (
+          <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-5">
+            <OrderTimeline steps={steps} />
+          </div>
+        ) : null;
+      })()}
 
       {order.paymentUrl && order.paymentStatus === "UNPAID" && (
         <a

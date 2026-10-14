@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
@@ -39,6 +40,10 @@ export default async function ProductPage({ params }: Props) {
   const { desa, slug } = await params;
   const product = await getProduct(desa, slug);
   if (!product) notFound();
+
+  const host = (await headers()).get("host");
+  const productUrl = `${host?.includes("localhost") ? "http" : "https"}://${host}/${desa}/produk/${slug}`;
+  const shareUrl = `https://wa.me/?text=${encodeURIComponent(`${product.name} — ${rupiah(product.price)}/${product.unit}\n${productUrl}`)}`;
 
   await db.product.update({
     where: { id: product.id },
@@ -134,6 +139,14 @@ export default async function ProductPage({ params }: Props) {
               villageSlug={product.village.slug}
               whatsapp={product.vendor.whatsapp}
             />
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-stone-500 hover:text-green-700"
+            >
+              ↗ Bagikan via WhatsApp
+            </a>
           </div>
 
           <div className="mt-8 rounded-2xl border border-stone-200 bg-white p-5">

@@ -50,3 +50,51 @@ export function requiresPaidBeforeProgress(
 export function stockStillHeld(order: { paymentStatus: string }): boolean {
   return order.paymentStatus === "UNPAID" || order.paymentStatus === "PENDING";
 }
+
+export type ProgressStep = { key: string; label: string; done: boolean };
+
+/**
+ * Langkah progres order untuk timeline di halaman lacak.
+ * Mengembalikan null untuk order terminal (CANCELLED/EXPIRED) —
+ * halaman menampilkan badge tersendiri untuk itu.
+ */
+export function orderProgressSteps(order: {
+  status: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  deliveryMethod: string;
+}): ProgressStep[] | null {
+  if (order.status === "CANCELLED" || order.status === "EXPIRED") return null;
+
+  const status = order.status;
+  const atLeast = (...s: string[]) => s.includes(status);
+  const paid =
+    order.paymentStatus === "PAID" ||
+    (order.paymentMethod === "COD" && status === "COMPLETED");
+
+  return [
+    { key: "buat", label: "Pesanan dibuat", done: true },
+    {
+      key: "bayar",
+      label:
+        order.paymentMethod === "COD"
+          ? "Bayar di tempat"
+          : order.paymentMethod === "TRANSFER"
+            ? "Transfer dikonfirmasi"
+            : "Pembayaran online",
+      done: paid,
+    },
+    {
+      key: "proses",
+      label: "Diproses penjual",
+      done: atLeast("PROCESSING", "DELIVERED", "COMPLETED"),
+    },
+    {
+      key: "kirim",
+      label:
+        order.deliveryMethod === "AMBIL_SENDIRI" ? "Siap diambil" : "Dikirim",
+      done: atLeast("DELIVERED", "COMPLETED"),
+    },
+    { key: "selesai", label: "Selesai", done: status === "COMPLETED" },
+  ];
+}

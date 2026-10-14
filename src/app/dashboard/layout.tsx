@@ -1,11 +1,25 @@
 import Link from "next/link";
+import { db } from "@/lib/db";
 import { requireRole, getMyVendor } from "@/lib/session";
 import { UserMenu } from "@/components/user-menu";
 import { SideNav } from "@/components/side-nav";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireRole("VENDOR", "ADMIN_DESA", "SUPERADMIN");
   const vendor = await getMyVendor(user.id);
+
+  // Badge: item menunggu diproses + bukti bayar yang perlu dicek
+  const pendingCount = vendor
+    ? await db.orderItem.count({
+        where: {
+          vendorId: vendor.id,
+          vendorStatus: "MENUNGGU",
+          order: { status: { notIn: ["CANCELLED", "EXPIRED"] } },
+        },
+      })
+    : 0;
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -31,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               items={[
                 ["/dashboard", "📊 Ringkasan"],
                 ["/dashboard/produk", "📦 Produk"],
-                ["/dashboard/pesanan", "🧾 Pesanan"],
+                ["/dashboard/pesanan", "🧾 Pesanan", pendingCount || undefined],
                 ["/dashboard/toko", "🏪 Toko Saya"],
               ]}
             />
