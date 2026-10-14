@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { getVillages } from "@/lib/queries";
 import { CartButton } from "./cart-button";
-import { VillageSwitcher } from "./village-switcher";
 import { UserMenu } from "./user-menu";
 import { HeaderSearch } from "./header-search";
 
 export async function SiteHeader() {
-  const [session, villages] = await Promise.all([auth(), getVillages()]);
+  const session = await auth();
   const user = session?.user;
 
   return (
@@ -18,20 +16,15 @@ export async function SiteHeader() {
           <span className="hidden sm:inline">Pasar UMKM</span>
         </Link>
 
-        {/* min-w-0 + scroll horizontal: pill wilayah tidak boleh mendorong
-            nav keluar viewport di layar sempit. Lebih dari 4 wilayah aktif →
-            ganti pill dengan tautan direktori (pill tidak skala). */}
-        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {villages.length > 4 ? (
-            <Link
-              href="/wilayah"
-              className="inline-block w-max rounded-full bg-stone-100 px-4 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-200"
-            >
-              🗺️ {villages.length} Wilayah
-            </Link>
-          ) : (
-            <VillageSwitcher villages={villages} />
-          )}
+        {/* Direktori wilayah — nama desa tidak ditonjolkan di header karena
+            cakupan sudah se-Kabupaten Bojonegoro. */}
+        <div className="min-w-0 flex-1">
+          <Link
+            href="/wilayah"
+            className="inline-block w-max rounded-full bg-stone-100 px-4 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-200"
+          >
+            🗺️ Wilayah
+          </Link>
         </div>
 
         <nav className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
