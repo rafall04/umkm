@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  AUTO_COMPLETE_AFTER_MS,
+  autoCompleteDue,
   effectiveExpiry,
   orderProgressSteps,
   requiresPaidBeforeProgress,
@@ -142,5 +144,28 @@ describe("orderProgressSteps", () => {
   it("AMBIL_SENDIRI: langkah kirim berlabel 'Siap diambil'", () => {
     const steps = prog({ deliveryMethod: "AMBIL_SENDIRI" })!;
     expect(steps[3].label).toBe("Siap diambil");
+  });
+});
+
+describe("autoCompleteDue", () => {
+  const staleDate = new Date(Date.now() - AUTO_COMPLETE_AFTER_MS - 1000);
+  const freshDate = new Date(Date.now() - AUTO_COMPLETE_AFTER_MS + 60_000);
+
+  it("item DIKIRIM lewat batas waktu → jatuh tempo auto-complete", () => {
+    expect(autoCompleteDue({ vendorStatus: "DIKIRIM", deliveredAt: staleDate })).toBe(true);
+  });
+
+  it("item DIKIRIM belum lewat batas → belum jatuh tempo", () => {
+    expect(autoCompleteDue({ vendorStatus: "DIKIRIM", deliveredAt: freshDate })).toBe(false);
+  });
+
+  it("status selain DIKIRIM tidak pernah auto-complete", () => {
+    for (const s of ["MENUNGGU", "DIPROSES", "SELESAI", "DIBATALKAN"] as const) {
+      expect(autoCompleteDue({ vendorStatus: s, deliveredAt: staleDate })).toBe(false);
+    }
+  });
+
+  it("DIKIRIM tanpa deliveredAt → tidak auto-complete (data lama)", () => {
+    expect(autoCompleteDue({ vendorStatus: "DIKIRIM", deliveredAt: null })).toBe(false);
   });
 });

@@ -82,6 +82,7 @@ export default async function DesaProductsPage({ params, searchParams }: Props) 
             slug={p.slug}
             name={p.name}
             price={p.price}
+            compareAtPrice={p.compareAtPrice}
             unit={p.unit}
             image={p.images[0]}
             vendorName={p.vendor.name}

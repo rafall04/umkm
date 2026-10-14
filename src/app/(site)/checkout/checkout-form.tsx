@@ -78,7 +78,11 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
       addressText: String(fd.get("addressText") ?? ""),
       note: String(fd.get("note") ?? ""),
       paymentMethod: payment,
-      items: items.map((i) => ({ productId: i.productId, qty: i.qty })),
+      items: items.map((i) => ({
+        productId: i.productId,
+        variantId: i.variantId,
+        qty: i.qty,
+      })),
     });
     setLoading(false);
     if (!res.ok) {
@@ -203,9 +207,13 @@ export function CheckoutForm({ onlinePayment }: { onlinePayment: boolean }) {
             <h2 className="font-semibold">Ringkasan Pesanan</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {items.map((i) => (
-                <li key={i.productId} className="flex justify-between gap-2">
+                <li key={`${i.productId}:${i.variantId ?? ""}`} className="flex justify-between gap-2">
                   <span>
-                    {i.name} <span className="text-stone-400">×{i.qty}</span>
+                    {i.name}
+                    {i.variantName && (
+                      <span className="text-stone-400"> ({i.variantName})</span>
+                    )}{" "}
+                    <span className="text-stone-400">×{i.qty}</span>
                   </span>
                   <span>{rupiah(i.price * i.qty)}</span>
                 </li>

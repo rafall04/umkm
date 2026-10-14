@@ -23,7 +23,7 @@ export default async function TrackOrderPage() {
         where: { buyerId: session.user.id },
         orderBy: { createdAt: "desc" },
         take: 20,
-        include: { items: { select: { productName: true, qty: true } } },
+        include: { items: { select: { productName: true, variantName: true, qty: true } } },
       })
     : [];
 
@@ -46,7 +46,12 @@ export default async function TrackOrderPage() {
                     </p>
                   </div>
                   <p className="mt-1 line-clamp-1 text-xs text-stone-500">
-                    {o.items.map((i) => `${i.productName} ×${i.qty}`).join(", ")}
+                    {o.items
+                      .map(
+                        (i) =>
+                          `${i.productName}${i.variantName ? ` (${i.variantName})` : ""} ×${i.qty}`,
+                      )
+                      .join(", ")}
                   </p>
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <div className="flex gap-1.5">

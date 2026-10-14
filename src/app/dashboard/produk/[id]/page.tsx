@@ -18,6 +18,7 @@ export default async function EditProductPage({
   const { id } = await params;
   const product = await db.product.findFirst({
     where: { id, vendorId: vendor.id },
+    include: { variants: { orderBy: { createdAt: "asc" } } },
   });
   if (!product) notFound();
 

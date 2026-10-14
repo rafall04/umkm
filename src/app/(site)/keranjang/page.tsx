@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCart } from "@/lib/cart";
+import { useCart, cartKey } from "@/lib/cart";
 import { rupiah } from "@/lib/format";
 import { useMounted } from "@/lib/use-mounted";
 
@@ -37,7 +37,7 @@ export default function CartPage() {
       <div className="mt-6 space-y-3">
         {items.map((item) => (
           <div
-            key={item.productId}
+            key={cartKey(item)}
             className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3 sm:gap-4"
           >
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-stone-100 sm:h-20 sm:w-20">
@@ -54,13 +54,18 @@ export default function CartPage() {
               >
                 {item.name}
               </Link>
+              {item.variantName && (
+                <p className="mt-0.5 truncate text-xs font-medium text-stone-600">
+                  Varian: {item.variantName}
+                </p>
+              )}
               <p className="mt-0.5 truncate text-xs text-stone-500">{item.vendorName}</p>
               <p className="mt-1 text-sm font-bold text-brand-700">{rupiah(item.price)}</p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
               <div className="flex items-center rounded-xl border border-stone-300">
                 <button
-                  onClick={() => setQty(item.productId, item.qty - 1)}
+                  onClick={() => setQty(cartKey(item), item.qty - 1)}
                   className="px-3 py-2 font-bold text-stone-500"
                   aria-label="Kurangi"
                 >
@@ -68,7 +73,7 @@ export default function CartPage() {
                 </button>
                 <span className="w-8 text-center text-sm font-semibold">{item.qty}</span>
                 <button
-                  onClick={() => setQty(item.productId, item.qty + 1)}
+                  onClick={() => setQty(cartKey(item), item.qty + 1)}
                   className="px-3 py-2 font-bold text-stone-500"
                   aria-label="Tambah"
                 >
@@ -76,7 +81,7 @@ export default function CartPage() {
                 </button>
               </div>
               <button
-                onClick={() => remove(item.productId)}
+                onClick={() => remove(cartKey(item))}
                 className="p-2 text-stone-400 hover:text-red-600"
                 aria-label="Hapus"
               >

@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireRole, adminVillageFilter } from "@/lib/session";
+import { recordOrderStatus } from "@/lib/orders";
 import { RESERVED_SLUGS } from "@/lib/slugs";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -54,18 +55,27 @@ export async function confirmManualPayment(orderId: string) {
 
   // Guard di dalam update — antara findFirst dan write order bisa dibatalkan
   // pembeli; jangan pernah menulis PAID ke order terminal.
-  const res = await db.order.updateMany({
-    where: {
-      id: orderId,
-      status: { notIn: ["CANCELLED", "EXPIRED"] },
-      paymentStatus: { not: "PAID" },
-    },
-    data: {
-      paymentStatus: "PAID",
-      paidAt: new Date(),
-      // Hanya naikkan status PENDING → PAID; jangan mundurkan status lanjutan
-      ...(order.status === "PENDING" ? { status: "PAID" as const } : {}),
-    },
+  const res = await db.$transaction(async (tx) => {
+    const r = await tx.order.updateMany({
+      where: {
+        id: orderId,
+        status: { notIn: ["CANCELLED", "EXPIRED"] },
+        paymentStatus: { not: "PAID" },
+      },
+      data: {
+        paymentStatus: "PAID",
+        paidAt: new Date(),
+        // Hanya naikkan status PENDING → PAID; jangan mundurkan status lanjutan
+        ...(order.status === "PENDING" ? { status: "PAID" as const } : {}),
+      },
+    });
+    if (r.count > 0 && order.status === "PENDING") {
+      await recordOrderStatus(tx, orderId, "PAID", {
+        note: "Pembayaran dikonfirmasi admin",
+        actor: `admin:${user.id}`,
+      });
+    }
+    return r;
   });
   if (res.count === 0) {
     return { ok: false as const, error: "Status pesanan sudah berubah — muat ulang" };

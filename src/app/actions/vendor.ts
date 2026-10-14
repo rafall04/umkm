@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireRole, getMyVendor } from "@/lib/session";
+import { recordOrderStatus } from "@/lib/orders";
 import { requiresPaidBeforeProgress } from "@/lib/order-rules";
 import { slugify } from "@/lib/format";
 import { revalidatePath } from "next/cache";
@@ -13,16 +14,26 @@ const imageUrl = z
   .min(1)
   .refine((s) => s.startsWith("/") || /^https?:\/\//.test(s), "URL gambar tidak valid");
 
+const variantSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1, "Nama varian wajib diisi").max(50),
+  price: z.number().int().positive().nullable(), // null = ikut harga produk
+  stock: z.number().int().min(0).max(999_999),
+  isActive: z.boolean(),
+});
+
 const productSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(3, "Nama produk minimal 3 karakter"),
   description: z.string().min(10, "Deskripsi minimal 10 karakter"),
   price: z.number().int().positive("Harga harus lebih dari 0"),
+  compareAtPrice: z.number().int().positive().nullable(),
   stock: z.number().int().min(0),
   unit: z.string().min(1),
   categoryId: z.string().min(1, "Pilih kategori"),
   images: z.array(imageUrl).max(5),
   isActive: z.boolean(),
+  variants: z.array(variantSchema).max(20),
 });
 
 export async function saveProduct(input: unknown) {
@@ -36,9 +47,15 @@ export async function saveProduct(input: unknown) {
   }
   const data = parsed.data;
 
+  // Harga coret harus di atas harga jual — kalau tidak, malah menyesatkan
+  if (data.compareAtPrice && data.compareAtPrice <= data.price) {
+    return { ok: false as const, error: "Harga coret harus lebih besar dari harga jual" };
+  }
+
   if (data.id) {
     const existing = await db.product.findFirst({
       where: { id: data.id, vendorId: vendor.id },
+      include: { variants: true },
     });
     if (!existing) return { ok: false as const, error: "Produk tidak ditemukan" };
     await db.product.update({
@@ -47,6 +64,7 @@ export async function saveProduct(input: unknown) {
         name: data.name,
         description: data.description,
         price: data.price,
+        compareAtPrice: data.compareAtPrice,
         stock: data.stock,
         unit: data.unit,
         categoryId: data.categoryId,
@@ -54,6 +72,7 @@ export async function saveProduct(input: unknown) {
         isActive: data.isActive,
       },
     });
+    await syncVariants(data.id, existing.variants, data.variants);
   } else {
     const baseSlug = slugify(data.name);
     let slug = `${baseSlug}-${vendor.slug}`;
@@ -61,12 +80,13 @@ export async function saveProduct(input: unknown) {
     while (await db.product.findUnique({ where: { slug } })) {
       slug = `${baseSlug}-${vendor.slug}-${++i}`;
     }
-    await db.product.create({
+    const created = await db.product.create({
       data: {
         name: data.name,
         slug,
         description: data.description,
         price: data.price,
+        compareAtPrice: data.compareAtPrice,
         stock: data.stock,
         unit: data.unit,
         categoryId: data.categoryId,
@@ -76,6 +96,7 @@ export async function saveProduct(input: unknown) {
         villageId: vendor.villageId,
       },
     });
+    await syncVariants(created.id, [], data.variants);
   }
 
   revalidatePath("/dashboard/produk");
@@ -101,6 +122,39 @@ export async function updateProductStock(productId: string, stock: number) {
   revalidatePath("/dashboard/produk");
   revalidatePath(`/${vendor.village.slug}/produk`);
   return { ok: true as const };
+}
+
+/**
+ * Sinkronkan varian: yang ada di payload tapi tidak di DB → create; yang ada
+ * di keduanya → update; yang hilang dari payload → soft-delete (isActive
+ * false) supaya order lama dengan variantId tetap valid untuk restore stok.
+ */
+async function syncVariants(
+  productId: string,
+  existing: { id: string }[],
+  incoming: { id?: string; name: string; price: number | null; stock: number; isActive: boolean }[],
+) {
+  const keepIds = new Set(incoming.map((v) => v.id).filter(Boolean));
+  for (const v of existing) {
+    if (!keepIds.has(v.id)) {
+      await db.productVariant.update({
+        where: { id: v.id },
+        data: { isActive: false },
+      });
+    }
+  }
+  for (const v of incoming) {
+    if (v.id && existing.some((e) => e.id === v.id)) {
+      await db.productVariant.update({
+        where: { id: v.id },
+        data: { name: v.name, price: v.price, stock: v.stock, isActive: v.isActive },
+      });
+    } else {
+      await db.productVariant.create({
+        data: { productId, name: v.name, price: v.price, stock: v.stock, isActive: v.isActive },
+      });
+    }
+  }
 }
 
 export async function deleteProduct(productId: string) {
@@ -217,18 +271,29 @@ export async function updateOrderItemStatus(itemId: string, status: string) {
       // konkuren tidak mengubah status atau mengembalikan stok dua kali.
       const res = await tx.orderItem.updateMany({
         where: { id: itemId, vendorStatus: item.vendorStatus },
-        data: { vendorStatus: status as "DIPROSES" | "DIKIRIM" | "SELESAI" | "DIBATALKAN" },
+        data: {
+          vendorStatus: status as "DIPROSES" | "DIKIRIM" | "SELESAI" | "DIBATALKAN",
+          // Tanda waktu kirim untuk auto-complete 3 hari
+          ...(status === "DIKIRIM" ? { deliveredAt: new Date() } : {}),
+        },
       });
       if (res.count === 0) {
         throw new Error("Status item sudah berubah — muat ulang halaman");
       }
 
-      // Item dibatalkan → kembalikan stok produknya
+      // Item dibatalkan → kembalikan stok (varian bila ada)
       if (status === "DIBATALKAN") {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.qty } },
-        });
+        if (item.variantId) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stock: { increment: item.qty } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.qty } },
+          });
+        }
       }
 
       // Sinkronkan status order induk dari seluruh item
@@ -245,7 +310,20 @@ export async function updateOrderItemStatus(itemId: string, status: string) {
       else if (statuses.some((s) => s === "DIKIRIM")) orderStatus = "DELIVERED";
       else if (statuses.some((s) => s === "DIPROSES")) orderStatus = "PROCESSING";
       if (orderStatus) {
-        await tx.order.update({ where: { id: item.orderId }, data: { status: orderStatus } });
+        // Guard: order terminal (CANCELLED/EXPIRED) tidak boleh bangkit lagi
+        // — status dicek ulang di dalam tx, bukan hanya di atas.
+        const synced = await tx.order.updateMany({
+          where: {
+            id: item.orderId,
+            status: { notIn: ["CANCELLED", "EXPIRED", "COMPLETED"] },
+          },
+          data: { status: orderStatus },
+        });
+        if (synced.count > 0) {
+          await recordOrderStatus(tx, item.orderId, orderStatus, {
+            actor: vendor ? `vendor:${vendor.id}` : `admin:${user.id}`,
+          });
+        }
       }
     });
   } catch (e) {

@@ -108,7 +108,10 @@ export default async function ReceiptPage({ params, searchParams }: Props) {
         <ul className="space-y-1.5">
           {order.items.map((item) => (
             <li key={item.id}>
-              <p>{item.productName}</p>
+              <p>
+                {item.productName}
+                {item.variantName ? ` (${item.variantName})` : ""}
+              </p>
               <div className="flex justify-between">
                 <span>
                   {item.qty} x {rupiah(item.price)}

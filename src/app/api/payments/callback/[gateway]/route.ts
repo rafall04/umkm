@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getGatewayByName } from "@/lib/payments";
+import { recordOrderStatus } from "@/lib/orders";
 import { revalidatePath } from "next/cache";
 
 const statusMap = {
@@ -53,6 +54,11 @@ export async function POST(
     await tx.paymentLog.create({
       data: { orderId: order.id, gateway: name, event: "callback", payload: verified.raw as object },
     });
+    // Riwayat status — order terminal tetap dicatat apa adanya
+    await recordOrderStatus(tx, order.id, update.status, {
+      note: `Callback ${name}: ${verified.status}`,
+      actor: `gateway:${name}`,
+    });
     // Kembalikan stok jika gagal/kedaluwarsa — hanya sekali. Idempotent
     // terhadap callback duplikat DAN pembatalan manual oleh pembeli.
     const alreadyRestored =
@@ -64,10 +70,15 @@ export async function POST(
       const items = await tx.orderItem.findMany({ where: { orderId: order.id } });
       await Promise.all(
         items.map((i) =>
-          tx.product.update({
-            where: { id: i.productId },
-            data: { stock: { increment: i.qty } },
-          }),
+          i.variantId
+            ? tx.productVariant.update({
+                where: { id: i.variantId },
+                data: { stock: { increment: i.qty } },
+              })
+            : tx.product.update({
+                where: { id: i.productId },
+                data: { stock: { increment: i.qty } },
+              }),
         ),
       );
     }

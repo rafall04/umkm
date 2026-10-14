@@ -4,6 +4,7 @@ import { trackOrder, cancelOrder } from "@/app/actions/checkout";
 import { StatusBadge } from "@/components/status-badge";
 import { OrderTimeline } from "@/components/order-timeline";
 import { orderProgressSteps } from "@/lib/order-rules";
+import { ReviewForm } from "./review-form";
 import { PaymentSection } from "./payment-section";
 import {
   rupiah,
@@ -116,10 +117,14 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
         <h2 className="border-b border-stone-100 px-5 py-3 font-semibold">Item Pesanan</h2>
         <ul className="divide-y divide-stone-100">
           {order.items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-4 px-5 py-3">
+            <li key={item.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-3">
               <div>
                 <p className="text-sm font-medium">
-                  {item.productName} <span className="text-stone-400">×{item.qty}</span>
+                  {item.productName}
+                  {item.variantName && (
+                    <span className="text-stone-500"> ({item.variantName})</span>
+                  )}{" "}
+                  <span className="text-stone-400">×{item.qty}</span>
                 </p>
                 <p className="text-xs text-stone-500">
                   {item.vendor.name} · {item.vendor.village.name}
@@ -132,6 +137,19 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
                   label={VENDOR_STATUS_LABEL[item.vendorStatus]}
                 />
               </div>
+              {item.vendorStatus === "SELESAI" && !item.review && (
+                <div className="w-full pt-1">
+                  <ReviewForm
+                    orderCode={order.code}
+                    phone={hp ?? order.buyerPhone}
+                    orderItemId={item.id}
+                    productName={item.productName}
+                  />
+                </div>
+              )}
+              {item.review && (
+                <p className="w-full pt-1 text-xs text-green-600">✓ Sudah diulas</p>
+              )}
             </li>
           ))}
         </ul>
@@ -164,6 +182,25 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Riwayat status */}
+      {order.history.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-5">
+          <h2 className="font-semibold">Riwayat Pesanan</h2>
+          <ol className="mt-3 space-y-3 border-l-2 border-stone-200 pl-4">
+            {order.history.map((h) => (
+              <li key={h.id} className="relative">
+                <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-500" />
+                <p className="text-sm font-medium">
+                  {ORDER_STATUS_LABEL[h.status] ?? h.status}
+                </p>
+                {h.note && <p className="text-xs text-stone-500">{h.note}</p>}
+                <p className="text-xs text-stone-400">{formatDateTime(h.createdAt)}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {order.note && (
         <p className="mt-4 rounded-2xl bg-stone-100 p-4 text-sm text-stone-600">

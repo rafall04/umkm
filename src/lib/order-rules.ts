@@ -51,6 +51,25 @@ export function stockStillHeld(order: { paymentStatus: string }): boolean {
   return order.paymentStatus === "UNPAID" || order.paymentStatus === "PENDING";
 }
 
+/** Item DIKIRIM otomatis dianggap SELESAI setelah 3 hari tanpa kabar. */
+export const AUTO_COMPLETE_AFTER_MS = 3 * 24 * 3600 * 1000;
+
+/**
+ * Item DIKIRIM yang sudah melewati batas auto-complete → boleh di-SELESAI-kan
+ * oleh sistem. COD/AMBIL_SENDIRI biasanya cepat selesai via tombol vendor;
+ * ini penutup untuk kasus vendor lupa menandai selesai.
+ */
+export function autoCompleteDue(item: {
+  vendorStatus: string;
+  deliveredAt: Date | null;
+}): boolean {
+  return (
+    item.vendorStatus === "DIKIRIM" &&
+    !!item.deliveredAt &&
+    item.deliveredAt.getTime() + AUTO_COMPLETE_AFTER_MS <= Date.now()
+  );
+}
+
 export type ProgressStep = { key: string; label: string; done: boolean };
 
 /**

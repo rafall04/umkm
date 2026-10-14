@@ -9,7 +9,7 @@ import {
 } from "@/lib/session";
 import { normalizePhone } from "@/lib/format";
 import { rateLimit } from "@/lib/rate-limit";
-import { expireOrderIfStale } from "@/lib/orders";
+import { expireOrderIfStale, recordOrderStatus } from "@/lib/orders";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { nanoid } from "nanoid";
@@ -185,11 +185,19 @@ export async function reviewPaymentProof(
 
   if (decision === "approve") {
     // Guard PENDING — dua peninjau tidak bisa approve bersamaan
-    const res = await db.order.updateMany({
-      where: { id: order.id, paymentStatus: "PENDING", status: "PENDING" },
-      data: { paymentStatus: "PAID", paidAt: new Date(), status: "PAID" },
-    });
-    if (res.count === 0) {
+    try {
+      await db.$transaction(async (tx) => {
+        const res = await tx.order.updateMany({
+          where: { id: order.id, paymentStatus: "PENDING", status: "PENDING" },
+          data: { paymentStatus: "PAID", paidAt: new Date(), status: "PAID" },
+        });
+        if (res.count === 0) throw new Error("race");
+        await recordOrderStatus(tx, order.id, "PAID", {
+          note: "Bukti transfer disetujui",
+          actor: vendor ? `vendor:${vendor.id}` : `admin:${user.id}`,
+        });
+      });
+    } catch {
       return { ok: false, error: "Status pesanan sudah berubah — muat ulang" };
     }
   } else {

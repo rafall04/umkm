@@ -119,6 +119,7 @@ export default async function VendorPage({ params }: Props) {
             slug={p.slug}
             name={p.name}
             price={p.price}
+            compareAtPrice={p.compareAtPrice}
             unit={p.unit}
             image={p.images[0]}
             vendorName={vendor.name}

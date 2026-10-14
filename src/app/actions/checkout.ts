@@ -6,7 +6,11 @@ import { auth } from "@/auth";
 import { orderCode, normalizePhone } from "@/lib/format";
 import { getGateway } from "@/lib/payments";
 import { rateLimit } from "@/lib/rate-limit";
-import { expireOrderIfStale } from "@/lib/orders";
+import {
+  expireOrderIfStale,
+  autoCompleteOrderIfStale,
+  recordOrderStatus,
+} from "@/lib/orders";
 import { getFreshSessionUser } from "@/lib/session";
 import { FLAT_SHIPPING_FEE } from "@/lib/config";
 import { redirect } from "next/navigation";
@@ -25,7 +29,13 @@ const checkoutSchema = z
     note: z.string().optional(),
     paymentMethod: z.enum(["GATEWAY", "TRANSFER", "COD"]),
     items: z
-      .array(z.object({ productId: z.string(), qty: z.number().int().positive() }))
+      .array(
+        z.object({
+          productId: z.string(),
+          variantId: z.string().optional(),
+          qty: z.number().int().positive(),
+        }),
+      )
       .min(1, "Keranjang kosong"),
   })
   .superRefine((d, ctx) => {
@@ -72,7 +82,7 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
       village: { isActive: true },
       vendor: { isActive: true, isVerified: true },
     },
-    include: { vendor: true },
+    include: { vendor: true, variants: { where: { isActive: true } } },
   });
   if (products.length !== productIds.length) {
     return { ok: false, error: "Ada produk yang sudah tidak tersedia. Periksa keranjang Anda." };
@@ -87,15 +97,45 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
   }
 
   const byId = new Map(products.map((p) => [p.id, p]));
+
+  // Resolve varian: harga & stok mengikuti varian bila dipilih. Produk yang
+  // punya varian aktif WAJIB memilih varian — stok dasar tidak dipakai.
+  type Resolved = {
+    product: (typeof products)[number];
+    variant: (typeof products)[number]["variants"][number] | null;
+    price: number;
+    stock: number;
+  };
+  const resolved = new Map<string, Resolved>(); // key: productId + variantId
   for (const item of data.items) {
     const p = byId.get(item.productId)!;
-    if (item.qty > p.stock) {
-      return { ok: false, error: `Stok "${p.name}" tersisa ${p.stock}.` };
+    if (p.variants.length > 0 && !item.variantId) {
+      return { ok: false, error: `Pilih varian untuk "${p.name}".` };
+    }
+    const variant = item.variantId
+      ? (p.variants.find((v) => v.id === item.variantId) ?? null)
+      : null;
+    if (item.variantId && !variant) {
+      return { ok: false, error: `Varian "${p.name}" tidak tersedia.` };
+    }
+    resolved.set(`${item.productId}:${item.variantId ?? ""}`, {
+      product: p,
+      variant,
+      price: variant?.price ?? p.price,
+      stock: variant ? variant.stock : p.stock,
+    });
+    const r = resolved.get(`${item.productId}:${item.variantId ?? ""}`)!;
+    if (item.qty > r.stock) {
+      return {
+        ok: false,
+        error: `Stok "${p.name}${variant ? ` ${variant.name}` : ""}" tersisa ${r.stock}.`,
+      };
     }
   }
 
   const subtotal = data.items.reduce(
-    (sum, i) => sum + i.qty * byId.get(i.productId)!.price,
+    (sum, i) =>
+      sum + i.qty * resolved.get(`${i.productId}:${i.variantId ?? ""}`)!.price,
     0,
   );
   const shippingFee = data.deliveryMethod === "ANTAR_DESA" ? FLAT_SHIPPING_FEE : 0;
@@ -128,15 +168,17 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
           total,
           items: {
             create: data.items.map((i) => {
-              const p = byId.get(i.productId)!;
+              const r = resolved.get(`${i.productId}:${i.variantId ?? ""}`)!;
               return {
-                vendorId: p.vendorId,
-                productId: p.id,
-                productName: p.name,
-                productImage: p.images[0] ?? null,
-                price: p.price,
+                vendorId: r.product.vendorId,
+                productId: r.product.id,
+                variantId: r.variant?.id ?? null,
+                productName: r.product.name,
+                variantName: r.variant?.name ?? null,
+                productImage: r.product.images[0] ?? null,
+                price: r.price,
                 qty: i.qty,
-                subtotal: i.qty * p.price,
+                subtotal: i.qty * r.price,
               };
             }),
           },
@@ -144,18 +186,30 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
         include: { items: true },
       });
 
-      // Kurangi stok secara atomik — updateMany dengan guard stock >= qty
+      // Kurangi stok secara atomik — updateMany dengan guard stock >= qty.
+      // Varian dipotong di product_variants; produk biasa di products.
       for (const i of data.items) {
-        const res = await tx.product.updateMany({
-          where: { id: i.productId, stock: { gte: i.qty } },
-          data: { stock: { decrement: i.qty } },
-        });
+        const r = resolved.get(`${i.productId}:${i.variantId ?? ""}`)!;
+        const res = r.variant
+          ? await tx.productVariant.updateMany({
+              where: { id: r.variant.id, stock: { gte: i.qty } },
+              data: { stock: { decrement: i.qty } },
+            })
+          : await tx.product.updateMany({
+              where: { id: r.product.id, stock: { gte: i.qty } },
+              data: { stock: { decrement: i.qty } },
+            });
         if (res.count === 0) {
           throw new Error(
-            `Stok "${byId.get(i.productId)!.name}" tidak mencukupi.`,
+            `Stok "${r.product.name}${r.variant ? ` ${r.variant.name}` : ""}" tidak mencukupi.`,
           );
         }
       }
+
+      await recordOrderStatus(tx, created.id, created.status, {
+        note: "Pesanan dibuat",
+        actor: "buyer",
+      });
 
       return created;
     });
@@ -195,8 +249,12 @@ export async function placeOrder(input: unknown): Promise<CheckoutResult> {
       customerPhone: data.buyerPhone,
       customerEmail: session?.user?.email ?? undefined,
       items: data.items.map((i) => {
-        const p = byId.get(i.productId)!;
-        return { name: p.name, price: p.price, qty: i.qty };
+        const r = resolved.get(`${i.productId}:${i.variantId ?? ""}`)!;
+        return {
+          name: r.product.name + (r.variant ? ` (${r.variant.name})` : ""),
+          price: r.price,
+          qty: i.qty,
+        };
       }),
       callbackUrl: `${appUrl}/api/payments/callback/${gateway.name}`,
       returnUrl: `${appUrl}/pesanan/${code}?hp=${encodeURIComponent(data.buyerPhone)}`,
@@ -265,8 +323,10 @@ export async function trackOrder(code: string, phone: string) {
     isAdmin;
   if (!allowed) return null;
 
-  // Tandai kedaluwarsa bila batas bayar sudah lewat (lazy sweep)
+  // Tandai kedaluwarsa bila batas bayar sudah lewat, lalu auto-complete
+  // untuk pengiriman yang sudah lama dikirim (lazy sweep)
   await expireOrderIfStale(order.id);
+  await autoCompleteOrderIfStale(order.id);
 
   return db.order.findUnique({
     where: { id: order.id },
@@ -276,9 +336,11 @@ export async function trackOrder(code: string, phone: string) {
           vendor: {
             select: { name: true, village: true, whatsapp: true, qrisImage: true },
           },
+          review: { select: { id: true } },
         },
       },
       buyer: { select: { id: true } },
+      history: { orderBy: { createdAt: "asc" } },
     },
   });
 }
@@ -330,12 +392,21 @@ export async function cancelOrder(code: string, phone: string) {
         data: { status: "CANCELLED" },
       });
       if (res.count === 0) return;
+      await recordOrderStatus(tx, order.id, "CANCELLED", {
+        note: "Dibatalkan pembeli",
+        actor: "buyer",
+      });
       await Promise.all(
         order.items.map((i) =>
-          tx.product.update({
-            where: { id: i.productId },
-            data: { stock: { increment: i.qty } },
-          }),
+          i.variantId
+            ? tx.productVariant.update({
+                where: { id: i.variantId },
+                data: { stock: { increment: i.qty } },
+              })
+            : tx.product.update({
+                where: { id: i.productId },
+                data: { stock: { increment: i.qty } },
+              }),
         ),
       );
     });

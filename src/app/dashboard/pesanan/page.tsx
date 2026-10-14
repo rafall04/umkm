@@ -106,7 +106,11 @@ export default async function VendorOrdersPage({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">
-                    {item.productName} <span className="text-stone-400">×{item.qty}</span>
+                    {item.productName}
+                    {item.variantName && (
+                      <span className="text-stone-500"> ({item.variantName})</span>
+                    )}{" "}
+                    <span className="text-stone-400">×{item.qty}</span>
                   </p>
                   <p className="mt-0.5 text-sm text-stone-500">
                     {order.code} · {formatDateTime(order.createdAt)}

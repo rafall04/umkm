@@ -15,7 +15,7 @@ export default async function VendorProductsPage() {
 
   const products = await db.product.findMany({
     where: { vendorId: vendor.id },
-    include: { category: true },
+    include: { category: true, _count: { select: { variants: { where: { isActive: true } } } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -54,7 +54,15 @@ export default async function VendorProductsPage() {
                 )}
               </p>
               <p className="text-sm text-stone-500">
-                {rupiah(p.price)}/{p.unit} · Stok <StockEditor productId={p.id} stock={p.stock} /> · {p.category.name}
+                {rupiah(p.price)}/{p.unit}
+                {p._count.variants > 0
+                  ? ` · ${p._count.variants} varian`
+                  : (
+                    <>
+                      {" "}· Stok <StockEditor productId={p.id} stock={p.stock} />
+                    </>
+                  )}{" "}
+                · {p.category.name}
               </p>
             </div>
             <Link

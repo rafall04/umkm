@@ -21,7 +21,16 @@ async function getProduct(desa: string, slug: string) {
       village: { slug: desa, isActive: true },
       vendor: { isActive: true, isVerified: true },
     },
-    include: { vendor: { include: { village: true } }, category: true, village: true },
+    include: {
+      vendor: { include: { village: true } },
+      category: true,
+      village: true,
+      variants: {
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, price: true, stock: true },
+      },
+    },
   });
 }
 
@@ -53,6 +62,22 @@ export default async function ProductPage({ params }: Props) {
   const related = (await getProductsByVillage(product.villageId, { limit: 5 })).filter(
     (p) => p.id !== product.id,
   );
+
+  const [reviews, ratingAgg] = await Promise.all([
+    db.review.findMany({
+      where: { productId: product.id, isPublished: true },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, rating: true, comment: true, buyerName: true, createdAt: true },
+    }),
+    db.review.aggregate({
+      where: { productId: product.id, isPublished: true },
+      _avg: { rating: true },
+      _count: { _all: true },
+    }),
+  ]);
+  const ratingAvg = ratingAgg._avg.rating;
+  const ratingCount = ratingAgg._count._all;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -120,7 +145,21 @@ export default async function ProductPage({ params }: Props) {
             {product.category.icon} {product.category.name}
           </Link>
           <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
+          {ratingCount > 0 && (
+            <p className="mt-1 text-sm text-amber-600" aria-label={`Rating ${ratingAvg?.toFixed(1)} dari 5`}>
+              {"★".repeat(Math.round(ratingAvg ?? 0))}
+              <span className="text-stone-300">{"★".repeat(5 - Math.round(ratingAvg ?? 0))}</span>
+              <span className="ml-1 text-stone-500">
+                {ratingAvg?.toFixed(1)} ({ratingCount} ulasan)
+              </span>
+            </p>
+          )}
           <p className="mt-3 text-3xl font-extrabold text-brand-700">
+            {product.compareAtPrice && product.compareAtPrice > product.price && (
+              <span className="mr-2 align-middle text-lg font-normal text-stone-400 line-through">
+                {rupiah(product.compareAtPrice)}
+              </span>
+            )}
             {rupiah(product.price)}
             <span className="text-base font-normal text-stone-500"> /{product.unit}</span>
           </p>
@@ -138,6 +177,7 @@ export default async function ProductPage({ params }: Props) {
               vendorName={product.vendor.name}
               villageSlug={product.village.slug}
               whatsapp={product.vendor.whatsapp}
+              variants={product.variants}
             />
             <a
               href={shareUrl}
@@ -173,6 +213,36 @@ export default async function ProductPage({ params }: Props) {
         </div>
       </div>
 
+      {/* Ulasan pembeli */}
+      {reviews.length > 0 && (
+        <section className="mt-14">
+          <h2 className="text-xl font-bold">
+            Ulasan Pembeli <span className="text-sm font-normal text-stone-500">({ratingCount})</span>
+          </h2>
+          <div className="mt-5 space-y-3">
+            {reviews.map((r) => (
+              <div key={r.id} className="rounded-2xl border border-stone-200 bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">{r.buyerName}</p>
+                  <p className="text-amber-500">
+                    {"★".repeat(r.rating)}
+                    <span className="text-stone-300">{"★".repeat(5 - r.rating)}</span>
+                  </p>
+                </div>
+                <p className="mt-1 text-sm text-stone-600">{r.comment}</p>
+                <p className="mt-1 text-xs text-stone-400">
+                  {new Date(r.createdAt).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Produk terkait */}
       {related.length > 0 && (
         <section className="mt-14">
@@ -184,6 +254,7 @@ export default async function ProductPage({ params }: Props) {
                 slug={p.slug}
                 name={p.name}
                 price={p.price}
+                compareAtPrice={p.compareAtPrice}
                 unit={p.unit}
                 image={p.images[0]}
                 vendorName={p.vendor.name}

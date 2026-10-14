@@ -86,7 +86,8 @@ export default async function DashboardPage() {
             <li key={item.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
               <div>
                 <p className="font-medium">
-                  {item.productName} ×{item.qty}
+                  {item.productName}
+                  {item.variantName ? ` (${item.variantName})` : ""} ×{item.qty}
                 </p>
                 <p className="text-xs text-stone-500">{item.order.code}</p>
               </div>

@@ -6,6 +6,7 @@ type ProductCardProps = {
   slug: string;
   name: string;
   price: number;
+  compareAtPrice?: number | null;
   unit: string;
   image?: string;
   vendorName: string;
@@ -18,6 +19,7 @@ export function ProductCard({
   slug,
   name,
   price,
+  compareAtPrice,
   unit,
   image,
   vendorName,
@@ -25,12 +27,21 @@ export function ProductCard({
   villageName,
   showVillage = false,
 }: ProductCardProps) {
+  const discount =
+    compareAtPrice && compareAtPrice > price
+      ? Math.round((1 - price / compareAtPrice) * 100)
+      : null;
   return (
     <Link
       href={`/${villageSlug}/produk/${slug}`}
       className="group overflow-hidden rounded-2xl border border-stone-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg"
     >
       <div className="relative aspect-square bg-stone-100">
+        {discount && (
+          <span className="absolute left-2 top-2 z-10 rounded-lg bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">
+            -{discount}%
+          </span>
+        )}
         {image ? (
           <Image
             src={image}
@@ -51,6 +62,9 @@ export function ProductCard({
           {rupiah(price)}
           <span className="text-xs font-normal text-stone-500"> /{unit}</span>
         </p>
+        {compareAtPrice && compareAtPrice > price && (
+          <p className="text-xs text-stone-400 line-through">{rupiah(compareAtPrice)}</p>
+        )}
         <p className="mt-1 truncate text-xs text-stone-500">
           {vendorName}
           {showVillage && ` · ${villageName}`}
