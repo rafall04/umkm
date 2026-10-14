@@ -9,9 +9,9 @@
   <circle cx="980" cy="120" r="70" fill="#fbbf24" opacity="0.9"/>
   <path d="M0 420 Q 300 320 640 410 T 1200 390 V600 H0 Z" fill="#15803d" opacity="0.85"/>
   <path d="M0 490 Q 380 400 760 480 T 1200 470 V600 H0 Z" fill="#166534"/>
-  <text x="120" y="340" font-size="140">&#x1F6D6;</text>
-  <text x="360" y="380" font-size="90">&#x1F9BA;</text>
-  <text x="640" y="340" font-size="110">&#x1F3E1;</text>
-  <text x="840" y="330" font-size="80">&#x1F33E;</text>
-  <text x="980" y="400" font-size="70">&#x1F6D5;</text>
+  <text x="120" y="210" font-size="120">&#x1F6D6;</text>
+  <text x="360" y="240" font-size="80">&#x1F9BA;</text>
+  <text x="640" y="190" font-size="95">&#x1F3E1;</text>
+  <text x="820" y="215" font-size="70">&#x1F33E;</text>
+  <text x="960" y="255" font-size="65">&#x1F6D5;</text>
 </svg>

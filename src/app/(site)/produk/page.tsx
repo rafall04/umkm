@@ -8,9 +8,9 @@ import { SearchBar } from "@/components/search-bar";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Semua Produk UMKM — Dander & Tanjungharjo",
+  title: "Semua Produk UMKM Bojonegoro",
   description:
-    "Jelajahi seluruh produk UMKM dari Dander dan Tanjungharjo, Kabupaten Bojonegoro.",
+    "Jelajahi seluruh produk UMKM dari pelaku usaha lokal se-Kabupaten Bojonegoro.",
 };
 
 type Props = { searchParams: Promise<{ q?: string; kategori?: string; desa?: string }> };
@@ -47,7 +47,7 @@ export default async function AllProductsPage({ searchParams }: Props) {
         <div>
           <h1 className="text-3xl font-bold">Semua Produk UMKM</h1>
           <p className="mt-1 text-stone-600">
-            {products.length} produk dari Dander & Tanjungharjo
+            {products.length} produk dari seluruh Bojonegoro
           </p>
         </div>
         <SearchBar basePath="/produk" placeholder="Cari di semua wilayah..." />

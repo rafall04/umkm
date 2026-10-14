@@ -1,6 +1,10 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { slugify } from "../src/lib/format";
+import { RESERVED_SLUGS } from "../src/lib/slugs";
 import bcrypt from "bcryptjs";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -41,6 +45,47 @@ async function main() {
       heroImage: "/images/desa-tanjungharjo.svg",
     },
   });
+
+  // ─── Master wilayah Bojonegoro (data Kemendagri) ───────────────────────
+  // Semua desa/kelurahan di-seed nonaktif — SUPERADMIN mengaktifkan lewat
+  // /admin/desa saat ada UMKM pertama di wilayah itu. Slug "dander" dan
+  // "tanjungharjo" sudah di-upsert di atas sehingga tidak tertimpa.
+  type MasterVillage = { id: string; name: string; kecamatan: string };
+  const master = JSON.parse(
+    readFileSync(join(__dirname, "data", "bojonegoro-villages.json"), "utf8"),
+  ) as MasterVillage[];
+  const titleCase = (s: string) =>
+    s.toLowerCase().replace(/(^|\s|-)(\w)/g, (_, p, c) => p + c.toUpperCase());
+  // Hindari duplikat desa yang sudah dikurasi dengan ejaan berbeda
+  // (master menulis "TANJUNG HARJO" vs slug "tanjungharjo") — bandingkan
+  // slug tanpa tanda hubung.
+  const existing = await db.village.findMany({ select: { slug: true } });
+  const existingFlat = new Set(existing.map((v) => v.slug.replace(/-/g, "")));
+  const takenSlugs = new Set(existing.map((v) => v.slug));
+  for (const v of master) {
+    const name = titleCase(v.name);
+    const kecamatan = titleCase(v.kecamatan);
+    const flat = slugify(name).replace(/-/g, "");
+    if (existingFlat.has(flat)) continue;
+    let slug = slugify(name);
+    if (RESERVED_SLUGS.has(slug) || takenSlugs.has(slug)) {
+      slug = `${slug}-${slugify(kecamatan)}`;
+    }
+    takenSlugs.add(slug);
+    await db.village.upsert({
+      where: { slug },
+      update: {},
+      create: {
+        slug,
+        name,
+        kecamatan,
+        kabupaten: "Bojonegoro",
+        provinsi: "Jawa Timur",
+        description: `${name}, Kecamatan ${kecamatan}, Kabupaten Bojonegoro.`,
+        isActive: false,
+      },
+    });
+  }
 
   // ─── Kategori ─────────────────────────────────────────────────────────
   const catDefs = [

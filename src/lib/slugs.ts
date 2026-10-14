@@ -4,6 +4,7 @@
  */
 export const RESERVED_SLUGS = new Set([
   "admin", "api", "dashboard", "produk", "pesanan", "keranjang", "checkout",
+  "wilayah",
   "login", "daftar", "daftar-umkm", "offline", "uploads", "icons", "images",
   "robots.txt", "sitemap.xml", "manifest.webmanifest", "sw.js", "favicon.ico",
   "_next",

@@ -9,7 +9,7 @@ import { INPUT_CLS } from "@/lib/ui";
 export function VendorRegisterForm({
   villages,
 }: {
-  villages: { id: string; name: string; kecamatan: string }[];
+  villages: { id: string; name: string; kecamatan: string; isActive: boolean }[];
 }) {
   const [form, setForm] = useState({
     name: "",
@@ -93,11 +93,20 @@ export function VendorRegisterForm({
           onChange={(e) => setForm({ ...form, villageId: e.target.value })}
         >
           <option value="">— Pilih lokasi usaha —</option>
-          {villages.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name} (Kec. {v.kecamatan})
-            </option>
-          ))}
+          <optgroup label="Wilayah sudah dibuka">
+            {villages.filter((v) => v.isActive).map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} (Kec. {v.kecamatan})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Wilayah lain di Bojonegoro — dibuka setelah verifikasi admin">
+            {villages.filter((v) => !v.isActive).map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} (Kec. {v.kecamatan})
+              </option>
+            ))}
+          </optgroup>
         </select>
         <input required placeholder="Nama usaha / toko" aria-label="Nama usaha atau toko" className={inputCls}
           value={form.storeName} onChange={(e) => setForm({ ...form, storeName: e.target.value })} />

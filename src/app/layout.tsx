@@ -13,11 +13,11 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
-    default: "Pasar UMKM — Dander & Tanjungharjo",
+    default: "Pasar UMKM Bojonegoro",
     template: "%s | Pasar UMKM",
   },
   description:
-    "Marketplace produk UMKM Dander dan Tanjungharjo, Kabupaten Bojonegoro. Belanja langsung dari pelaku usaha lokal.",
+    "Marketplace produk UMKM se-Kabupaten Bojonegoro. Belanja langsung dari pelaku usaha lokal di wilayah Anda.",
   keywords: [
     "UMKM Dander",
     "UMKM Tanjungharjo",

@@ -26,11 +26,11 @@ export default async function HomePage() {
           </h1>
           <p className="mt-4 max-w-xl text-lg text-brand-100">
             Belanja makanan, kerajinan, dan hasil bumi terbaik dari UMKM
-            Dander dan Tanjungharjo. Setiap pembelian mendukung ekonomi
+            se-Kabupaten Bojonegoro. Setiap pembelian mendukung ekonomi
             warga.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            {villages.map((v) => (
+            {villages.slice(0, 3).map((v) => (
               <Link
                 key={v.slug}
                 href={`/${v.slug}`}
@@ -39,6 +39,14 @@ export default async function HomePage() {
                 Jelajahi {v.name} →
               </Link>
             ))}
+            {villages.length > 3 && (
+              <Link
+                href="/wilayah"
+                className="rounded-xl bg-white px-6 py-3 font-semibold text-brand-800 transition hover:bg-brand-50"
+              >
+                Semua Wilayah →
+              </Link>
+            )}
             <Link
               href="/produk"
               className="rounded-xl border-2 border-white/40 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
@@ -65,10 +73,13 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Desa cards */}
+      {/* Kartu wilayah — maks 4 teramai; sisanya lewat direktori /wilayah */}
       <section className="mx-auto max-w-7xl px-4 pb-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          {villages.map((v) => (
+          {[...villages]
+            .sort((a, b) => b._count.products - a._count.products)
+            .slice(0, 4)
+            .map((v) => (
             <Link
               key={v.slug}
               href={`/${v.slug}`}
@@ -83,7 +94,7 @@ export default async function HomePage() {
                   className="object-cover transition duration-500 group-hover:scale-105"
                 />
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-stone-900/90 via-stone-900/40 to-stone-900/10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-stone-900/95 via-stone-900/75 via-55% to-stone-900/15" />
               <div className="relative">
                 <p className="text-sm text-stone-300">
                   Kecamatan {v.kecamatan}, {v.kabupaten}
@@ -99,6 +110,16 @@ export default async function HomePage() {
             </Link>
           ))}
         </div>
+        {villages.length > 4 && (
+          <div className="mt-4 text-center">
+            <Link
+              href="/wilayah"
+              className="text-sm font-semibold text-brand-600 hover:underline"
+            >
+              Lihat semua {villages.length} wilayah →
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* Produk unggulan */}

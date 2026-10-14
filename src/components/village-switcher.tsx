@@ -9,7 +9,7 @@ export function VillageSwitcher({ villages }: { villages: VillageLite[] }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex items-center gap-1 rounded-full bg-stone-100 p-1 text-sm">
+    <div className="flex w-max items-center gap-1 rounded-full bg-stone-100 p-1 text-sm">
       {villages.map((v) => {
         const active = pathname === `/${v.slug}` || pathname.startsWith(`/${v.slug}/`);
         return (

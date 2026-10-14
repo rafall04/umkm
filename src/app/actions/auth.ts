@@ -65,8 +65,9 @@ export async function registerVendor(input: unknown) {
     return { ok: false as const, error: "Terlalu banyak percobaan. Coba lagi nanti." };
   }
 
-  // Wilayah nonaktif tidak boleh menerima pendaftaran baru
-  const village = await db.village.findFirst({ where: { id: villageId, isActive: true } });
+  // Wilayah nonaktif tetap boleh menerima pendaftaran — vendor menunggu
+  // verifikasi dan wilayah dibuka admin (pre-seed master Kemendagri).
+  const village = await db.village.findUnique({ where: { id: villageId } });
   if (!village) return { ok: false as const, error: "Lokasi usaha tidak ditemukan" };
 
   const existing = await db.user.findFirst({

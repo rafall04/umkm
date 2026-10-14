@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Pasar UMKM — Dander & Tanjungharjo",
+    name: "Pasar UMKM Bojonegoro",
     short_name: "Pasar UMKM",
     description:
-      "Marketplace produk UMKM Dander dan Tanjungharjo, Kabupaten Bojonegoro.",
+      "Marketplace produk UMKM se-Kabupaten Bojonegoro.",
     start_url: "/?source=pwa",
     scope: "/",
     display: "standalone",

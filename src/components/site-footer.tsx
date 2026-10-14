@@ -19,13 +19,20 @@ export async function SiteFooter() {
         <div>
           <p className="font-semibold text-white">Wilayah</p>
           <ul className="mt-3 space-y-2 text-sm">
-            {villages.map((v) => (
+            {villages.slice(0, 6).map((v) => (
               <li key={v.slug}>
                 <Link href={`/${v.slug}`} className="hover:text-white">
                   {v.name}
                 </Link>
               </li>
             ))}
+            {villages.length > 6 && (
+              <li>
+                <Link href="/wilayah" className="font-medium hover:text-white">
+                  Semua {villages.length} wilayah →
+                </Link>
+              </li>
+            )}
             <li>
               <Link href="/produk" className="hover:text-white">
                 Semua Produk
@@ -65,7 +72,7 @@ export async function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-stone-800 py-4 text-center text-xs text-stone-400">
-        © {new Date().getFullYear()} Pasar UMKM — Dander & Tanjungharjo,
+        © {new Date().getFullYear()} Pasar UMKM Bojonegoro,
         Kabupaten Bojonegoro
       </div>
     </footer>
